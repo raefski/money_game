@@ -34,6 +34,7 @@
   --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
   --radius: 6px;
   --gap: 10px;
+  --gutter: 16px;
   --ease: cubic-bezier(.2, .7, .2, 1);
 }
 
@@ -90,14 +91,13 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
 .app {
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
-  height: 100vh;
-  height: 100dvh;
+  height: 100%;
 }
 .layout {
   display: grid;
   grid-template-columns: minmax(300px, 340px) minmax(0, 1fr) minmax(300px, 356px);
   gap: var(--gap);
-  padding: var(--gap);
+  padding: var(--gap) var(--gutter);
   min-height: 0;
 }
 .col {
@@ -118,7 +118,7 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 10px 14px;
+  padding: 10px var(--gutter);
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(13, 20, 31, 0.95), rgba(8, 12, 18, 0.95));
 }
@@ -773,7 +773,8 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
   display: flex;
   align-items: center;
   gap: 18px;
-  padding: 5px 14px;
+  padding: 5px var(--gutter);
+  padding-bottom: calc(5px + env(safe-area-inset-bottom, 0px));
   border-top: 1px solid var(--line);
   background: #070a0f;
   font-family: var(--font-mono);
@@ -833,7 +834,7 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
 .toasts {
   position: fixed;
   z-index: 40;
-  bottom: 38px;
+  bottom: calc(38px + env(safe-area-inset-bottom, 0px));
   right: 14px;
   display: flex;
   flex-direction: column;
@@ -937,21 +938,24 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
 .debug {
   position: fixed;
   z-index: 45;
-  left: 12px;
-  bottom: 36px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  max-width: 330px;
+  left: var(--gutter);
+  bottom: calc(36px + env(safe-area-inset-bottom, 0px));
+  max-width: min(330px, calc(100vw - 2 * var(--gutter)));
   padding: 8px;
   border-radius: 6px;
   border: 1px dashed var(--down);
-  background: rgba(20, 6, 6, .9);
+  background: rgba(20, 6, 6, .92);
   font-family: var(--font-mono);
   font-size: 10px;
 }
-.debug b { width: 100%; color: var(--down); letter-spacing: 0.12em; }
-.debug button { padding: 3px 6px; border-radius: 3px; border: 1px solid #5a2a2a; background: #1d0c0c; color: #ffc9c9; cursor: pointer; font-size: 10px; }
+.debug-body { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+.debug.collapsed .debug-body { display: none; }
+.debug button { padding: 3px 6px; border-radius: 3px; border: 1px solid #5a2a2a; background: #1d0c0c; color: #ffc9c9; cursor: pointer; font: inherit; font-size: 10px; }
+.debug .debug-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; width: 100%; padding: 0; border: 0; background: none; color: var(--down); font-weight: 700; letter-spacing: 0.12em; }
+.debug.collapsed { padding: 6px 10px; }
+.debug.collapsed .debug-head { width: auto; }
+.debug.collapsed .debug-body { margin: 0; }
+.debug.collapsed .debug-caret { transform: rotate(-90deg); }
 
 /* ---------- Mini HUD (narrow screens only) ---------- */
 .mini-hud { display: none; }
@@ -1007,10 +1011,10 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
 }
 @media (max-width: 1220px) {
   body { overflow: auto; }
-  .app { height: auto; min-height: 100vh; }
+  .app { height: auto; min-height: 100%; }
   .layout { grid-template-columns: minmax(290px, 320px) minmax(0, 1fr); align-items: start; }
   .col { overflow: visible; }
-  .col-left { position: sticky; top: 0; max-height: 100vh; overflow-y: auto; }
+  .col-left { position: sticky; top: env(safe-area-inset-top, 0px); max-height: 100vh; overflow-y: auto; }
   .col-right { grid-column: 2; display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); align-items: start; }
   .statusbar { position: sticky; bottom: 0; }
   .brand-sub { display: none; }
@@ -1019,12 +1023,12 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
   .kpi:nth-child(4) { display: none; }
 }
 @media (max-width: 860px) {
-  .topbar { flex-wrap: wrap; gap: 8px 12px; padding: 8px 12px; }
+  .topbar { flex-wrap: wrap; gap: 8px 12px; padding: 8px var(--gutter); }
   .kpis { order: 3; width: 100%; justify-content: space-between; margin-left: 0; gap: 0; }
   .kpi { padding: 2px 8px; min-width: 0; }
   .kpi:first-child { border-left: 0; padding-left: 0; }
   .actions { margin-left: auto; }
-  .layout { grid-template-columns: minmax(0, 1fr); padding: 8px; }
+  .layout { grid-template-columns: minmax(0, 1fr); padding: 8px var(--gutter); }
   .col-left { position: static; max-height: none; overflow: visible; }
   .col-right { grid-column: auto; grid-template-columns: minmax(0, 1fr); }
   .hero-value { font-size: 36px; }
@@ -1037,11 +1041,11 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
   .mini-hud {
     display: flex;
     position: sticky;
-    top: 0;
+    top: env(safe-area-inset-top, 0px);
     z-index: 30;
     justify-content: space-between;
     gap: 10px;
-    padding: 6px 12px;
+    padding: 6px var(--gutter);
     background: rgba(7, 10, 15, 0.94);
     border-bottom: 1px solid var(--accent-line);
     font-family: var(--font-mono);
@@ -1060,6 +1064,56 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
   .kpi-value { font-size: 12px; }
   .kpi-label { font-size: 9px; }
   .cam { display: none; }
+}
+
+/* ---------- Touch & phone ---------- */
+button, [data-tip] { -webkit-tap-highlight-color: transparent; }
+.bcard, .utile, .nugget-btn, .seg button {
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+/* On a phone the tooltip becomes a bottom sheet (positioned in Tip.position). */
+.tooltip.sheet {
+  top: auto;
+  left: 8px;
+  bottom: calc(40px + env(safe-area-inset-bottom, 0px));
+  width: calc(100vw - 16px);
+  max-width: none;
+  max-height: 60vh;
+  overflow-y: auto;
+  transform: none !important;
+  font-size: 13.5px;
+  box-shadow: 0 -10px 40px -10px rgba(0, 0, 0, .9), 0 0 0 1px rgba(0, 0, 0, .4);
+}
+@media (max-width: 860px) {
+  .modal textarea, .modal input[type="search"] { font-size: 16px; } /* 16px stops iOS zooming in on focus */
+  .toasts { width: min(360px, calc(100vw - 2 * var(--gutter))); pointer-events: none; }
+  .toast { pointer-events: none; gap: 8px; padding: 8px 10px; grid-template-columns: 28px 1fr; }
+  .toast-ico { width: 28px; height: 28px; }
+  .toast-ico .picto, .toast-ico .ico { width: 22px; height: 22px; }
+  .toast-title { font-size: 13px; }
+  .toast-text { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; font-size: 11.5px; }
+}
+@media (pointer: coarse) {
+  .debug button { min-height: 36px; padding: 6px 10px; font-size: 12px; }
+  .debug .debug-head { min-height: 28px; padding: 0; font-size: 12px; }
+}
+/* Two compact columns of sites on narrow phones, so the shop is not a wall of tall cards. */
+@media (max-width: 560px) {
+  .bgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .bcard-art { aspect-ratio: 16 / 11; }
+  .bcard-tier { left: 4px; top: 4px; max-width: calc(100% - 42px); padding: 2px 5px; font-size: 8.5px; }
+  .bcard-count { right: 4px; top: 4px; min-width: 24px; padding: 0 5px; font-size: 12px; }
+  .bcard-body { flex: 1; padding: 6px 8px 8px; gap: 4px; }
+  .bcard-row:first-child { align-items: flex-start; }
+  .bcard-name { font-size: 13px; line-height: 1.2; white-space: normal; } /* long names wrap instead of truncating */
+  .bcard-year { font-size: 10px; padding-top: 2px; }
+  .bcard-row.small { justify-content: flex-start; font-size: 11px; }
+  .bcard-row.small .muted { display: none; }
+  .bcard-buy { margin-top: auto; padding: 5px 7px; font-size: 11px; } /* buy buttons line up along the row */
+  .bcard-eta { display: none; }
+  .locked-overlay { font-size: 9.5px; letter-spacing: 0.08em; }
 }
 
 /* ---------- Reduced motion ---------- */

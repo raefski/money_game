@@ -10,6 +10,17 @@ Open `index.html` in a browser. No build step and no server are needed: the scri
 
 To serve it instead, run `python3 -m http.server` and open `http://localhost:8000`.
 
+### On a phone
+
+The repo is a plain static site, so GitHub Pages can host it: in the repo go to **Settings → Pages**, set **Source** to *Deploy from a branch*, pick **main** and **/ (root)**, and save. A minute later it is live at `https://<user>.github.io/<repo>/`.
+
+- **Tooltips:** touch has no hover. Tap an underlined term to read it, or **long-press** a site card or research tile for its details (a quick tap still buys). Tap anywhere else to close.
+- **Saves are per browser.** A phone and a computer keep separate saves. Use Settings → Export / Import to move one.
+- **Testing aids:** Settings → Developer tools adds a panel to add gold, add sites, research everything and skip time. It also works with `?debug` in the URL.
+- **Smoothness:** the late game runs a lot of SVG animation. If an older phone stutters, turn on Settings → Reduced motion.
+
+Claude artifacts need one self-contained file. `python3 tools/build-artifact.py out.html` inlines the CSS and scripts into that form.
+
 ## Files
 
 | File | Responsibility |
@@ -19,6 +30,7 @@ To serve it instead, run `python3 -m http.server` and open `http://localhost:800
 | `gameEngine.js` | rAF render loop, wall-clock simulation catch-up, persistence, actions, the view layer, tooltips, ticker, lucky strikes, modals, sound and debug tools. |
 | `style.css` | Dark terminal theme. The era palette is swapped with `body[data-era]`. |
 | `index.html` | The dashboard shell. |
+| `tools/build-artifact.py` | Builds a single-file copy for hosts that wrap pages in their own skeleton. |
 
 ## How time works
 
@@ -38,7 +50,7 @@ To serve it instead, run `python3 -m http.server` and open `http://localhost:800
 
 ## Debug mode
 
-Open `index.html?debug` to show a panel with buttons to add gold, add sites, research everything, warp time, spawn a lucky strike, and preview the fiat theme.
+Turn on **Settings → Developer tools**, or open `index.html?debug`, to show a panel with buttons to add gold, add sites, research everything, warp time, spawn a lucky strike, and preview the fiat theme. The panel starts collapsed on phones.
 
 The game object is also exposed on `window.FFC` in the browser console.
 

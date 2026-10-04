@@ -523,8 +523,15 @@
     el: null,
     target: null,
     sticky: false,
+    press: null,        // an in-progress touch on a [data-tip] element
+    longFired: false,   // the last touch became a long-press: swallow its click
+    LONG_MS: 450,
+    SLOP: 10,
     init() {
       this.el = $('tooltip');
+      const focusVisible = (el) => { try { return el.matches(':focus-visible'); } catch (_) { return true; } };
+
+      // Mouse and pen: hover.
       document.addEventListener('pointerover', (e) => {
         if (e.pointerType === 'touch') return;
         const t = e.target.closest('[data-tip]');
@@ -537,21 +544,66 @@
         if (to && this.target.contains(to)) return;
         if (!to || !to.closest || !to.closest('[data-tip]')) this.hide();
       });
+
+      // Touch: there is no hover. A tap on plain text (terms, stats) opens its tooltip; buttons
+      // keep their tap action, and a long-press on one opens the tooltip instead.
       document.addEventListener('pointerdown', (e) => {
+        this.longFired = false;
         if (e.pointerType !== 'touch') return;
         const t = e.target.closest('[data-tip]');
-        if (t && !t.matches('button')) this.show(t, true);
-        else this.hide();
+        if (!t) { if (!this.el.contains(e.target)) this.hide(); return; }
+        this.cancelPress();
+        const press = { t, id: e.pointerId, x: e.clientX, y: e.clientY, timer: null };
+        if (t.matches('button')) {
+          press.timer = setTimeout(() => {
+            if (this.press !== press) return;
+            this.press = null;
+            this.longFired = true;
+            this.show(t, true);
+          }, this.LONG_MS);
+        }
+        this.press = press;
       });
+      document.addEventListener('pointermove', (e) => {
+        const p = this.press;
+        if (p && e.pointerId === p.id && Math.hypot(e.clientX - p.x, e.clientY - p.y) > this.SLOP) this.cancelPress();
+      });
+      document.addEventListener('pointerup', (e) => {
+        const p = this.press;
+        if (!p || e.pointerId !== p.id) return;
+        this.cancelPress();
+        if (p.t.matches('button') || !p.t.contains(e.target)) return;
+        if (this.sticky && this.target === p.t) this.hide(); else this.show(p.t, true);
+      });
+      // A scroll gesture cancels the pointer, so panning the page never opens a tooltip.
+      document.addEventListener('pointercancel', () => this.cancelPress());
+      document.addEventListener('click', (e) => {
+        if (!this.longFired) return;
+        this.longFired = false;
+        if (e.target.closest('[data-tip]')) { e.preventDefault(); e.stopPropagation(); }
+      }, true);
+      document.addEventListener('contextmenu', (e) => {
+        const onTip = e.target.closest && e.target.closest('[data-tip]');
+        if (this.longFired || (onTip && matchMedia('(pointer: coarse)').matches)) e.preventDefault();
+      });
+
+      // Keyboard: only a visible focus ring opens one, so tapping a button never pops a tooltip.
       document.addEventListener('focusin', (e) => {
         const t = e.target.closest && e.target.closest('[data-tip]');
-        if (t) this.show(t);
+        if (t && focusVisible(e.target)) this.show(t);
       });
       document.addEventListener('focusout', (e) => {
         if (this.target && e.target.closest && e.target.closest('[data-tip]') === this.target) this.hide();
       });
-      document.addEventListener('scroll', () => { if (this.target && !this.sticky) this.hide(); }, true);
+      document.addEventListener('scroll', (e) => {
+        if (this.target && !this.el.contains(e.target)) this.hide();
+      }, true);
       window.addEventListener('resize', () => this.hide());
+    },
+    cancelPress() {
+      if (!this.press) return;
+      clearTimeout(this.press.timer);
+      this.press = null;
     },
     content() {
       const spec = this.target.dataset.tip || '';
@@ -582,6 +634,10 @@
       if (this.el._h !== before) this.position();
     },
     position() {
+      // On a phone the tooltip becomes a bottom sheet; CSS places it.
+      const sheet = window.innerWidth <= 600 && matchMedia('(pointer: coarse)').matches;
+      toggleClass(this.el, 'sheet', sheet);
+      if (sheet) { this.el.style.transform = ''; return; }
       const t = this.target.getBoundingClientRect();
       const w = this.el.offsetWidth, h = this.el.offsetHeight;
       const vw = window.innerWidth, vh = window.innerHeight, m = 8;
@@ -619,8 +675,9 @@
     };
     el.addEventListener('click', (e) => { if (!e.target.closest('.term')) dismiss(); });
     box.appendChild(el);
-    while (box.children.length > 4) box.firstElementChild.remove();
-    setTimeout(dismiss, timeout);
+    const phone = matchMedia('(max-width: 860px)').matches; // keep the stack from covering the screen
+    while (box.children.length > (phone ? 2 : 4)) box.firstElementChild.remove();
+    setTimeout(dismiss, phone ? Math.min(timeout, 4000) : timeout);
   }
 
   const Modal = {
@@ -1308,6 +1365,7 @@
     E.setNotation(st.notation);
     document.body.classList.toggle('reduce-motion', st.motion === 'reduced');
     document.body.dataset.era = G.state.era;
+    Debug.sync();
   }
 
   function showSettings() {
@@ -1319,6 +1377,7 @@
       body: `<div class="field"><span class="field-label">Number format</span><div class="opt-row">${opt('notation', 'suffix', '1.23M · 4.56T')}${opt('notation', 'scientific', '1.23e6 · 4.56e12')}</div></div>
         <div class="field"><span class="field-label">Motion</span><div class="opt-row">${opt('motion', 'full', 'Full animation')}${opt('motion', 'reduced', 'Reduced motion')}</div></div>
         <div class="field"><span class="field-label">Sound</span><div class="opt-row">${opt('sound', 'true', 'On')}${opt('sound', 'false', 'Off')}</div></div>
+        <div class="field"><span class="field-label">Developer tools</span><div class="opt-row">${opt('debug', 'true', 'On')}${opt('debug', 'false', 'Off')}</div><p class="muted" style="margin:0;font-size:12px">Adds a panel for testing: add gold or sites, research everything, skip ahead in time.</p></div>
         <div class="field"><span class="field-label">Save data</span>
           <p class="muted" style="margin:0">Autosaves to this browser every 10 seconds, and when you leave. Last saved ${esc(new Date(G.state.savedAt).toLocaleTimeString())}.</p>
           <div class="opt-row"><button type="button" class="btn" id="set-save">${A.uiIcon('disk')}Save now</button><button type="button" class="btn" id="set-export">${A.uiIcon('upload')}Export</button><button type="button" class="btn" id="set-import">${A.uiIcon('download')}Import</button></div>
@@ -1330,7 +1389,7 @@
       onOpen: (box) => {
         box.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => {
           const key = b.dataset.set;
-          const val = key === 'sound' ? b.dataset.val === 'true' : b.dataset.val;
+          const val = key === 'sound' || key === 'debug' ? b.dataset.val === 'true' : b.dataset.val;
           st[key] = val;
           box.querySelectorAll(`[data-set="${key}"]`).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
           applySettings();
@@ -1493,23 +1552,39 @@
     },
     lucky() { Lucky.forceSpawn(); },
     era() { G.state.era = G.state.era === 'gold' ? 'fiat' : 'gold'; applySettings(); },
+    el: null,
+    /** Show the panel when ?debug is in the URL or the Developer tools setting is on. */
+    sync() {
+      const want = DEBUG || (G.state && G.state.settings.debug);
+      if (want && !this.el) this.mount();
+      else if (!want && this.el) this.unmount();
+    },
+    unmount() {
+      if (this.el) this.el.remove();
+      this.el = null;
+    },
     mount() {
       const el = document.createElement('div');
-      el.className = 'debug';
+      el.className = `debug${matchMedia('(max-width: 860px)').matches ? ' collapsed' : ''}`;
       const btns = [
         ['+1K oz', () => this.give(1e3)], ['+1M oz', () => this.give(1e6)], ['+1B oz', () => this.give(1e9)], ['+1T oz', () => this.give(1e12)],
         ['+10 sites', () => this.buildings(10)], ['+50 sites', () => this.buildings(50)], ['research all', () => this.research()],
         ['warp 1h', () => this.warp(3600)], ['lucky', () => this.lucky()], ['fiat theme', () => this.era()],
       ];
-      el.innerHTML = '<b>DEBUG</b>';
+      el.innerHTML = '<button type="button" class="debug-head" aria-expanded="true"><span>DEBUG</span><span class="debug-caret" aria-hidden="true">▾</span></button><div class="debug-body"></div>';
+      const head = el.querySelector('.debug-head');
+      head.setAttribute('aria-expanded', String(!el.classList.contains('collapsed')));
+      head.addEventListener('click', () => head.setAttribute('aria-expanded', String(!el.classList.toggle('collapsed'))));
+      const body = el.querySelector('.debug-body');
       btns.forEach(([label, fn]) => {
         const b = document.createElement('button');
         b.type = 'button';
         b.textContent = label;
         b.addEventListener('click', () => { fn(); G.d = E.derive(G.state); G.year = E.yearFor(G.state.run.gold); View.slow(); });
-        el.appendChild(b);
+        body.appendChild(b);
       });
       document.body.appendChild(el);
+      this.el = el;
     },
   };
 
@@ -1582,7 +1657,6 @@
       if (e.key === 'Escape' && Tip.sticky) Tip.hide();
     });
 
-    if (DEBUG) Debug.mount();
     window.FFC = { G, Economy: E, SVGAssets: A, save, debug: Debug, store: Store };
 
     if (problem === 'corrupt') toast({ kicker: 'LEDGER', title: 'Save could not be read', text: 'A backup copy was kept in local storage. Starting a fresh era.', icon: A.uiIcon('info'), timeout: 10000 });

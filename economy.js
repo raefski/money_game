@@ -466,7 +466,7 @@
       buffs: [],
       prestige: { credibility: 0, resets: 0 },
       stats: { lifetimeGold: 0, totalClicks: 0, playTime: 0, luckyStrikes: 0, createdAt: now },
-      settings: { notation: 'suffix', motion: 'full', sound: false, buyAmount: 1 },
+      settings: { notation: 'suffix', motion: 'full', sound: false, buyAmount: 1, debug: false },
       flags: { introSeen: false },
       codex: {},
       log: [],
@@ -505,6 +505,7 @@
     s.settings.notation = se.notation === 'scientific' ? 'scientific' : 'suffix';
     s.settings.motion = se.motion === 'reduced' ? 'reduced' : 'full';
     s.settings.sound = !!se.sound;
+    s.settings.debug = !!se.debug;
     s.settings.buyAmount = [1, 10, 100, 'max'].includes(se.buyAmount) ? se.buyAmount : 1;
     s.flags.introSeen = !!(raw.flags && raw.flags.introSeen);
     if (raw.codex) Object.keys(raw.codex).forEach((id) => { if (GLOSSARY[id] && raw.codex[id]) s.codex[id] = true; });
