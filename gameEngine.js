@@ -590,10 +590,14 @@
       let html = '';
       if (this.phase === 'ready') {
         const first = G.state.run.shifts === 0;
+        const touch = matchMedia('(pointer: coarse)').matches;
         html = `<div class="mo-card">
           <div class="mo-kicker">SHIFT ${G.state.run.shifts + 1} · ${esc(d.map.name.toUpperCase())}</div>
           <h3>${first ? 'Your first shift' : 'Ready at the rock face'}</h3>
-          <p>${first ? 'Tap a rock to swing your pick, or hold down to keep swinging. The pick hits <b>every rock inside its ring</b>, so aim for clusters.' : 'Tap or hold on the rock. Aim the ring at clusters of rock and nuggets.'}</p>
+          <p>${touch ? (first
+            ? 'Hold your finger <b>just below</b> a rock: the pick floats above your fingertip, so you can watch the rock crack. It hits <b>every rock inside its ring</b>, so aim for clusters.'
+            : 'Hold just below the rock: the pick floats above your finger. Aim the ring at clusters of rock and nuggets.')
+            : first ? 'Tap a rock to swing your pick, or hold down to keep swinging. The pick hits <b>every rock inside its ring</b>, so aim for clusters.' : 'Tap or hold on the rock. Aim the ring at clusters of rock and nuggets.'}</p>
           <div class="mo-stats"><span>${m.duration.toFixed(0)}s shift</span><span>reach ${Math.round(m.radius)}</span><span>${swings}</span></div>
           <button type="button" class="btn btn-primary btn-big" data-act="start">${A.uiIcon('pick')}Start shift</button>
         </div>`;
@@ -1766,7 +1770,7 @@
       body: `${fromV1 ? '<p class="note">The game has been rebuilt around mining shifts, so this is a fresh start. Your settings and studied terms carried over, and the old save is kept in this browser.</p>' : ''}
         <p>A carpenter has spotted flakes of gold in the American River. The young United States will build its money on what comes out of the ground.</p>
         <ul class="brief">
-          <li>${A.uiIcon('pick')}<span><b>Mine in shifts.</b> Tap or hold on the rock face. Your pick hits every rock inside its ring.</span></li>
+          <li>${A.uiIcon('pick')}<span><b>Mine in shifts.</b> Tap or hold on the rock face. Your pick hits every rock inside its ring${matchMedia('(pointer: coarse)').matches ? ', and on a touchscreen it floats just above your finger so you can see the rock break' : ''}.</span></li>
           <li>${A.uiIcon('coin')}<span><b>The Mint pays.</b> Gold goes into the Treasury vault, and the Mint issues dollars for it at the <span class="term" data-tip="term:mint-price" tabindex="0">official price</span>, $20.67 an ounce.</span></li>
           <li>${A.uiIcon('spark')}<span><b>Upgrade.</b> A bigger, stronger, faster pick; longer shifts; dynamite. Every card says exactly what it does.</span></li>
           <li>${A.uiIcon('book')}<span><b>Make history.</b> Sign charters to move from 1848 toward 1971. Nothing unlocks by waiting.</span></li>

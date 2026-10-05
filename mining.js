@@ -22,6 +22,7 @@
   };
   const BLAST_DAMAGE = 0.6;   // dynamite hits for this share of pick damage
   const MAX_BLASTS = 30;      // chain reactions stop here, per strike
+  const TOUCH_LIFT = 56;      // CSS px: on touch the pick floats this far above the fingertip
 
   function rng(seed) {
     let s = (seed >>> 0) || 1;
@@ -237,7 +238,7 @@
     const ctx = canvas.getContext('2d');
     const view = {
       shift: null, running: false, paused: false,
-      aim: null, holding: false, queued: false, lastStrike: -1e9, nextDrill: 0,
+      aim: null, finger: null, holding: false, queued: false, lastStrike: -1e9, nextDrill: 0,
       particles: [], popups: [], rings: [], swingT: 0, shakeT: 0,
       scale: 1, ox: 0, oy: 0, cssW: 0, cssH: 0, dpr: 1, bg: null, bgKey: '',
       accent: '#f5c542', reduced: false, pointerType: 'mouse',
@@ -268,9 +269,23 @@
       view.oy = (view.cssH - f.h * view.scale) / 2;
     }
 
-    function toField(e) {
+    /**
+     * Where a pointer aims, in field units. A fingertip would hide the rock it
+     * is breaking, so on touch the pick floats TOUCH_LIFT px above it. Near the
+     * bottom edge the lift shrinks, so every rock stays reachable.
+     */
+    function aimFrom(e) {
       const rect = canvas.getBoundingClientRect();
-      return { x: (e.clientX - rect.left - view.ox) / view.scale, y: (e.clientY - rect.top - view.oy) / view.scale };
+      const cx = e.clientX - rect.left, cy = e.clientY - rect.top;
+      if (e.pointerType !== 'touch') {
+        view.finger = null;
+        return { x: (cx - view.ox) / view.scale, y: (cy - view.oy) / view.scale };
+      }
+      const top = view.oy;
+      const bottom = view.shift ? view.oy + view.shift.h * view.scale : view.cssH;
+      const ay = Math.min(bottom, Math.max(top, cy - Math.min(TOUCH_LIFT, Math.max(0, bottom - cy))));
+      view.finger = { x: (cx - view.ox) / view.scale, y: (cy - view.oy) / view.scale };
+      return { x: (cx - view.ox) / view.scale, y: (ay - view.oy) / view.scale };
     }
 
     function paletteFor() {
@@ -568,6 +583,25 @@
         ctx.fillStyle = t.kind === 'crit' ? `rgba(255,138,31,${a})` : `rgba(255,227,154,${a})`;
         ctx.fillText(t.text, t.x, t.y);
       }
+      // on touch, a faint tether from the fingertip up to the floating pick
+      if (s && view.running && view.holding && view.finger && view.aim) {
+        const u = 1 / view.scale;  // one CSS pixel, in field units
+        ctx.save();
+        ctx.strokeStyle = view.accent;
+        ctx.fillStyle = view.accent;
+        ctx.globalAlpha = 0.45;
+        ctx.lineWidth = 1.5 * u;
+        ctx.setLineDash([4 * u, 4 * u]);
+        ctx.beginPath();
+        ctx.moveTo(view.finger.x, view.finger.y);
+        ctx.lineTo(view.aim.x, view.aim.y);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(view.finger.x, view.finger.y, 4 * u, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
       // the pick: its reach as a ring, and the head swinging on each strike
       if (s && view.aim && (view.running || view.pointerType === 'mouse')) {
         const R = s.stats.radius;
@@ -612,7 +646,7 @@
     function onDown(e) {
       if (e.button != null && e.button > 0) return;
       view.pointerType = e.pointerType || 'mouse';
-      view.aim = toField(e);
+      view.aim = aimFrom(e);
       if (!view.running) return;
       e.preventDefault();
       view.holding = true;
@@ -624,10 +658,11 @@
     function onMove(e) {
       view.pointerType = e.pointerType || 'mouse';
       if (e.pointerType === 'touch' && !view.holding) return;
-      view.aim = toField(e);
+      view.aim = aimFrom(e);
     }
     function onUp() {
       view.holding = false;
+      view.finger = null;
     }
     function onKey(e) {
       if (!view.running || (e.key !== ' ' && e.key !== 'Enter')) return;
@@ -698,7 +733,7 @@
     return view;
   }
 
-  const Mining = { AREA, ORES, PALETTES, fieldSize, createShift, update, strike, bestAim, simulate, createView };
+  const Mining = { AREA, ORES, PALETTES, TOUCH_LIFT, fieldSize, createShift, update, strike, bestAim, simulate, createView };
   root.Mining = Mining;
   if (typeof module !== 'undefined' && module.exports) module.exports = Mining;
 })(typeof window !== 'undefined' ? window : globalThis);
