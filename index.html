@@ -26,11 +26,11 @@
         </div>
       </div>
       <div class="kpis">
-        <div class="kpi" data-tip="text:era"><span class="kpi-label">Era</span><span class="kpi-value era" id="kpi-era">I · Gold Standard</span></div>
         <div class="kpi" data-tip="text:date" id="kpi-date-wrap"><span class="kpi-label">Date</span><span class="kpi-value" id="kpi-date">JAN 1848</span></div>
-        <div class="kpi" data-tip="term:troy-ounce" id="kpi-price-wrap"><span class="kpi-label">Gold / oz</span><span class="kpi-value" id="kpi-price">$20.67</span></div>
-        <div class="kpi" data-tip="text:usd"><span class="kpi-label">Reserves (USD)</span><span class="kpi-value" id="kpi-usd">$0.00</span></div>
-        <div class="kpi" data-tip="text:bonus"><span class="kpi-label">History bonus</span><span class="kpi-value" id="kpi-bonus">+0%</span></div>
+        <div class="kpi kpi-hero" data-tip="text:dollars"><span class="kpi-label">Dollars</span><span class="kpi-value" id="kpi-dollars">$0.00</span></div>
+        <div class="kpi" data-tip="text:reserves"><span class="kpi-label">Vault reserves</span><span class="kpi-value" id="kpi-reserves">0 oz</span></div>
+        <div class="kpi" data-tip="text:mint" id="kpi-rate-wrap"><span class="kpi-label">Mint pays</span><span class="kpi-value" id="kpi-rate">$20.67/oz</span></div>
+        <div class="kpi" data-tip="text:crews"><span class="kpi-label">Crews</span><span class="kpi-value" id="kpi-crews">+$0/s</span></div>
       </div>
       <nav class="actions" aria-label="Game menu">
         <button class="icon-btn" id="btn-codex" type="button" aria-label="Economics codex" data-tip="text:codex"></button>
@@ -46,116 +46,157 @@
       <div class="ticker-viewport"><div class="ticker-track" id="ticker-track"></div></div>
     </div>
 
-    <div class="mini-hud" aria-hidden="true"><b id="mini-gold">0 oz</b><span id="mini-rate">+0 oz/s</span></div>
+    <!-- ================= Pages ================= -->
+    <nav class="tabs" role="tablist" aria-label="Pages" id="tabs">
+      <button type="button" role="tab" id="tab-mine" data-page="mine" aria-controls="page-mine"><span class="tab-ico" data-icon="pick"></span><span>Mine</span></button>
+      <button type="button" role="tab" id="tab-upgrades" data-page="upgrades" aria-controls="page-upgrades"><span class="tab-ico" data-icon="spark"></span><span>Upgrades</span><b class="tab-badge" id="badge-upgrades" hidden></b></button>
+      <button type="button" role="tab" id="tab-territory" data-page="territory" aria-controls="page-territory"><span class="tab-ico" data-icon="map"></span><span>Territory</span><b class="tab-badge" id="badge-territory" hidden></b></button>
+      <button type="button" role="tab" id="tab-treasury" data-page="treasury" aria-controls="page-treasury"><span class="tab-ico" data-icon="vault"></span><span>Treasury</span><b class="tab-badge" id="badge-treasury" hidden></b></button>
+    </nav>
 
-    <main class="layout">
-      <!-- ================= Left: Extraction console ================= -->
-      <section class="col col-left" aria-label="Extraction console">
-        <div class="panel console">
-          <header class="panel-head"><h2>Extraction Console</h2><span class="spacer"></span><span class="tag">AU·01</span></header>
-          <div class="hero">
-            <div class="hero-label"><span class="term" data-tip="term:troy-ounce" tabindex="0">Gold reserves</span></div>
-            <div class="hero-value"><span id="gold">0</span><span class="unit">oz</span></div>
-            <div class="hero-sub"><span id="gold-usd">≈ $0.00</span> <span class="muted">at <span id="gold-price-inline">$20.67</span>/oz</span></div>
-          </div>
-          <div class="stat-row">
-            <div class="stat" data-tip="text:rate"><div class="stat-label">Output</div><div class="stat-value" id="rate">0 <small>oz/s</small></div></div>
-            <div class="stat" data-tip="text:strike"><div class="stat-label">Per strike</div><div class="stat-value" id="click-value">1 <small>oz</small></div></div>
-          </div>
-          <div class="strike-zone" id="strike-zone">
-            <button class="nugget-btn" id="nugget" type="button" aria-label="Strike the gold vein"></button>
-            <div class="strike-hint">STRIKE THE VEIN</div>
-            <div class="fx-layer" id="fx-layer"></div>
-          </div>
-          <div class="buffs" id="buffs" aria-live="polite"></div>
-          <div class="spark-card">
-            <div class="spark-head"><span>Reserves, last 2 min</span><span class="delta" id="spark-delta">—</span></div>
-            <div class="spark-wrap" id="spark-wrap">
-              <svg id="sparkline" viewBox="0 0 300 64" preserveAspectRatio="none" role="img" aria-label="Gold reserves over the last two minutes"></svg>
-              <div class="spark-readout" id="spark-readout" hidden></div>
+    <div class="mini-hud" aria-hidden="true"><b id="mini-dollars">$0</b><span id="mini-reserves">0 oz</span></div>
+
+    <main class="pages">
+      <!-- ---------- Mine ---------- -->
+      <section class="page" id="page-mine" role="tabpanel" aria-labelledby="tab-mine">
+        <div class="mine-layout">
+          <div class="panel mine-panel">
+            <header class="panel-head">
+              <h2>The Rock Face</h2>
+              <span class="tag" id="mine-place">COLOMA, CA</span>
+              <div class="map-chips" id="map-chips" role="radiogroup" aria-label="Mine"></div>
+            </header>
+            <div class="mine-wrap" id="mine-wrap">
+              <canvas id="mine-canvas" tabindex="0" aria-label="Rock face. Tap or click a rock to swing your pick; hold down to keep swinging. Your pick hits every rock inside its ring."></canvas>
+              <div class="mine-hud" aria-hidden="true">
+                <div class="mine-timer"><span class="meter"><span id="mine-time-fill"></span></span><b id="mine-time">20.0s</b></div>
+                <div class="mine-tally"><b id="mine-gold">0.00 oz</b><span id="mine-dollars">$0.00</span></div>
+              </div>
+              <div class="mine-banner" id="mine-banner" hidden>MOTHER LODE!</div>
+              <div class="mine-overlay" id="mine-overlay"></div>
             </div>
-            <div class="spark-foot"><span>−2m</span><span id="spark-range"></span><span>now</span></div>
           </div>
-          <div class="log-card">
-            <div class="log-head"><span>Event log</span><span class="muted mono" id="log-count"></span></div>
-            <ol class="log" id="log"></ol>
-          </div>
+          <aside class="mine-side">
+            <div class="panel">
+              <header class="panel-head"><h2>Your Pick</h2><span class="spacer"></span><button class="link-btn" type="button" data-goto="upgrades">Upgrades →</button></header>
+              <dl class="statlist" id="pick-stats"></dl>
+            </div>
+            <div class="panel">
+              <header class="panel-head"><h2>Ready to Buy</h2></header>
+              <div class="quick" id="quick-buys"></div>
+            </div>
+            <div class="panel log-panel">
+              <header class="panel-head"><h2>Event Log</h2><span class="spacer"></span><span class="muted mono" id="log-count"></span></header>
+              <ol class="log" id="log"></ol>
+            </div>
+          </aside>
         </div>
       </section>
 
-      <!-- ================= Center: Territory + Operations ================= -->
-      <section class="col col-center" aria-label="Operations">
-        <div class="panel territory">
+      <!-- ---------- Upgrades ---------- -->
+      <section class="page" id="page-upgrades" role="tabpanel" aria-labelledby="tab-upgrades" hidden>
+        <div class="panel shop-panel">
           <header class="panel-head">
-            <h2>Territory</h2>
-            <span class="tag" id="territory-loc">SIERRA NEVADA · 38.80°N 120.89°W</span>
-            <div class="head-meter" data-tip="text:industry"><span>Industrial index</span><span class="meter"><span id="industry-fill"></span></span><b id="industry-val">0%</b></div>
-          </header>
-          <div class="scene-wrap" id="scene-wrap">
-            <svg id="scene" viewBox="0 34 1200 326" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Your mining territory"></svg>
-            <div class="scene-hud">
-              <div class="tl">
-                <div class="cam"><span class="rec">LIVE</span><span>TERRITORY CAM 01</span></div>
-                <div class="next" data-tip="text:milestone">
-                  <div class="next-ms"><span>NEXT <b id="next-ms-title">The Forty-Niners</b></span><span id="next-ms-year">1849</span></div>
-                  <span class="meter thin"><span id="next-ms-fill"></span></span>
-                </div>
-              </div>
-              <div class="tr"><div class="scene-date" id="scene-date">JAN 1848</div><div id="scene-sites">0 SITES</div></div>
+            <h2>Upgrades</h2>
+            <span class="tag" id="shop-count">0 owned</span>
+            <div class="seg" role="radiogroup" aria-label="Show" id="shop-filter">
+              <button type="button" role="radio" data-filter="all">All</button>
+              <button type="button" role="radio" data-filter="ready">Can buy</button>
             </div>
-            <div class="lucky-layer" id="lucky-layer"></div>
-          </div>
-        </div>
-
-        <div class="panel ops" id="ops">
-          <header class="panel-head">
-            <h2>Operations</h2>
-            <span class="tag" id="ops-count">0 BUILT</span>
-            <div class="seg" role="radiogroup" aria-label="Buy amount" id="buy-seg">
+            <div class="seg" role="radiogroup" aria-label="Levels per purchase" id="shop-amount">
               <button type="button" role="radio" data-amt="1">×1</button>
               <button type="button" role="radio" data-amt="10">×10</button>
-              <button type="button" role="radio" data-amt="100">×100</button>
               <button type="button" role="radio" data-amt="max">MAX</button>
             </div>
           </header>
-          <div class="bgrid" id="bgrid"></div>
+          <nav class="cat-nav" id="cat-nav" aria-label="Categories"></nav>
+          <div class="shop" id="shop"></div>
         </div>
       </section>
 
-      <!-- ================= Right: R&D, Gold Window, Fiat preview ================= -->
-      <section class="col col-right" aria-label="Research and policy">
-        <div class="panel rnd">
-          <header class="panel-head"><h2>Research &amp; Policy</h2><span class="spacer"></span><span class="tag" id="rnd-count">0 / 0</span></header>
-          <div class="ugrid" id="ugrid"></div>
-          <p class="empty" id="ugrid-empty" hidden>Nothing to research yet. Expand your operations to unlock upgrades.</p>
-          <div class="legend-row"><span><i style="background:var(--text-3)"></i>Site upgrade</span><span><i style="background:var(--info)"></i>Strike tool</span><span><i style="background:var(--accent)"></i>Policy</span></div>
-          <details class="researched" id="researched">
-            <summary>Researched <span class="mono" id="researched-count">0</span></summary>
-            <div class="ugrid small" id="ugrid-owned"></div>
-          </details>
-        </div>
-
-        <div class="panel window-panel">
-          <header class="panel-head"><h2>The Gold Window</h2><span class="spacer"></span><span class="tag tag-lock" id="window-tag"></span></header>
-          <div class="window-body">
-            <div id="vault-door"></div>
-            <div>
-              <div class="kv"><span class="term" data-tip="term:gold-standard" tabindex="0">Dollar peg</span><span id="peg-price">$20.67 / oz</span></div>
-              <div class="kv"><span>Sever cost</span><span id="nixon-cost">1.00T oz</span></div>
-              <span class="meter"><span id="nixon-fill"></span></span>
-              <div class="kv small"><span id="nixon-pct">0.00%</span><span id="nixon-eta">ETA —</span></div>
-              <div class="kv"><span class="term" data-tip="term:credibility" tabindex="0">Credibility on reset</span><span id="nixon-cred">+0</span></div>
+      <!-- ---------- Territory ---------- -->
+      <section class="page" id="page-territory" role="tabpanel" aria-labelledby="tab-territory" hidden>
+        <div class="territory-layout">
+          <div class="panel territory">
+            <header class="panel-head">
+              <h2>Territory</h2>
+              <span class="tag" id="territory-loc">SIERRA NEVADA · 38.80°N 120.89°W</span>
+              <div class="head-meter" data-tip="text:industry"><span>Industrial index</span><span class="meter"><span id="industry-fill"></span></span><b id="industry-val">0%</b></div>
+            </header>
+            <div class="scene-wrap" id="scene-wrap">
+              <svg id="scene" viewBox="0 34 1200 326" preserveAspectRatio="xMidYMax slice" role="img" aria-label="Your mining territory"></svg>
+              <div class="scene-hud">
+                <div class="tl"><div class="cam"><span class="rec">LIVE</span><span>TERRITORY CAM 01</span></div></div>
+                <div class="tr"><div class="scene-date" id="scene-date">JAN 1848</div><div id="scene-sites">0 SITES</div></div>
+              </div>
             </div>
           </div>
-          <button class="btn btn-nixon" id="btn-nixon" type="button" disabled></button>
-          <p class="fine">Severing the peg triggers the <span class="term" data-tip="term:nixon-shock" tabindex="0">Nixon Shock</span>: your gold empire is traded for Central Bank Credibility and the Fiat Era opens.</p>
+          <div class="panel ops" id="ops">
+            <header class="panel-head">
+              <h2>Crews</h2>
+              <span class="tag" id="ops-count">0 BUILT</span>
+              <div class="seg" role="radiogroup" aria-label="Buy amount" id="buy-seg">
+                <button type="button" role="radio" data-amt="1">×1</button>
+                <button type="button" role="radio" data-amt="10">×10</button>
+                <button type="button" role="radio" data-amt="100">×100</button>
+                <button type="button" role="radio" data-amt="max">MAX</button>
+              </div>
+            </header>
+            <div class="crew-summary" data-tip="text:crews">
+              <div class="crew-line"><span>Crews mine at</span><b id="crew-share">0%</b><span>of your pace</span><span class="muted" id="crew-cap">(capacity 30%)</span></div>
+              <span class="meter"><span id="crew-fill"></span></span>
+              <div class="crew-line small"><span>Your pace</span><b id="crew-pace">0 oz/s</b><span class="muted">→ crews</span><b id="crew-rate">0 oz/s</b></div>
+            </div>
+            <div class="bgrid" id="bgrid"></div>
+          </div>
         </div>
+      </section>
 
-        <div class="panel fiat-preview">
-          <header class="panel-head"><h2>Fiat Era</h2><span class="spacer"></span><span class="tag">CLASSIFIED PREVIEW</span></header>
-          <p class="fiat-intro">After the gold window closes, money becomes a policy choice. Hover a node to study what awaits.</p>
-          <div class="tree" id="fiat-tree"></div>
-          <div class="instruments" id="fiat-instruments"></div>
+      <!-- ---------- Treasury ---------- -->
+      <section class="page" id="page-treasury" role="tabpanel" aria-labelledby="tab-treasury" hidden>
+        <div class="treasury-layout">
+          <div class="panel mint-panel">
+            <header class="panel-head"><h2>The Mint</h2><span class="spacer"></span><span class="tag" id="mint-tag">U.S. MINT · SAN FRANCISCO</span></header>
+            <div class="mint-hero">
+              <div class="mint-label">The Mint pays</div>
+              <div class="mint-value"><span id="mint-rate">$20.67</span><span class="unit">per ounce</span></div>
+              <div class="mint-formula" id="mint-formula"></div>
+            </div>
+            <dl class="statlist" id="mint-stats"></dl>
+            <div class="spark-card">
+              <div class="spark-head"><span>Vault reserves, last 2 min</span><span class="delta" id="spark-delta">—</span></div>
+              <div class="spark-wrap" id="spark-wrap">
+                <svg id="sparkline" viewBox="0 0 300 64" preserveAspectRatio="none" role="img" aria-label="Vault reserves over the last two minutes"></svg>
+                <div class="spark-readout" id="spark-readout" hidden></div>
+              </div>
+              <div class="spark-foot"><span>−2m</span><span id="spark-range"></span><span>now</span></div>
+            </div>
+          </div>
+          <div class="panel history-panel">
+            <header class="panel-head"><h2>History</h2><span class="spacer"></span><span class="tag" id="history-count">1 / 22</span></header>
+            <ol class="timeline" id="timeline"></ol>
+          </div>
+          <div class="panel window-panel">
+            <header class="panel-head"><h2>The Gold Window</h2><span class="spacer"></span><span class="tag tag-lock" id="window-tag"></span></header>
+            <div class="window-body">
+              <div id="vault-door"></div>
+              <div>
+                <div class="kv"><span class="term" data-tip="term:gold-standard" tabindex="0">Dollar peg</span><span id="peg-price">$20.67 / oz</span></div>
+                <div class="kv"><span>Required</span><span id="nixon-req">1968 charter</span></div>
+                <span class="meter"><span id="nixon-fill"></span></span>
+                <div class="kv small"><span id="nixon-pct">0.00%</span><span id="nixon-eta">of the vault target</span></div>
+                <div class="kv"><span class="term" data-tip="term:credibility" tabindex="0">Credibility on reset</span><span id="nixon-cred">+0</span></div>
+              </div>
+            </div>
+            <button class="btn btn-nixon" id="btn-nixon" type="button" disabled></button>
+            <p class="fine">Severing the peg triggers the <span class="term" data-tip="term:nixon-shock" tabindex="0">Nixon Shock</span>: your gold empire is traded for Central Bank Credibility and the Fiat Era opens.</p>
+          </div>
+          <div class="panel fiat-preview">
+            <header class="panel-head"><h2>Fiat Era</h2><span class="spacer"></span><span class="tag">CLASSIFIED PREVIEW</span></header>
+            <p class="fiat-intro">After the gold window closes, money becomes a policy choice. Hover or tap a node to study what awaits.</p>
+            <div class="tree" id="fiat-tree"></div>
+            <div class="instruments" id="fiat-instruments"></div>
+          </div>
         </div>
       </section>
     </main>
@@ -167,7 +208,7 @@
       <span id="sb-session">SESSION 00:00:00</span>
       <span id="sb-lifetime">LIFETIME 0 OZ</span>
       <span class="grow"></span>
-      <span>v0.1.0 · PHASE I PROTOTYPE</span>
+      <span>v0.2.0 · PHASE I PROTOTYPE</span>
     </footer>
   </div>
 
@@ -179,6 +220,7 @@
   <noscript><p style="padding:24px;font-family:monospace">Full Faith &amp; Credit needs JavaScript to run.</p></noscript>
 
   <script src="economy.js"></script>
+  <script src="mining.js"></script>
   <script src="svgAssets.js"></script>
   <script src="gameEngine.js"></script>
 </body>

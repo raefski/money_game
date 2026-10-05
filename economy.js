@@ -1,7 +1,13 @@
 /* ==========================================================================
    FULL FAITH & CREDIT — economy.js
-   Pure economic model: definitions, formulas, simulation and number
-   formatting. No DOM access, so it also loads in Node for balancing/tests.
+   Pure economic model: definitions, formulas and number formatting. No DOM,
+   so it also loads in Node for balancing and tests. The mining shift itself
+   (rocks, hits, dynamite) lives in mining.js.
+
+   The loop: mine gold in timed shifts, and with permitted sites between
+   shifts. Every ounce goes into the Treasury as reserves, and the Mint issues
+   dollars against it at (official price ÷ gold cover). Dollars buy upgrades,
+   site permits and historical charters. Nothing unlocks just by waiting.
    ========================================================================== */
 (function (root) {
   'use strict';
@@ -9,12 +15,20 @@
   /* ------------------------------------------------------------------------
    * Constants
    * --------------------------------------------------------------------- */
-  const SAVE_VERSION = 1;
-  const COST_GROWTH = 1.13;               // each extra building costs 13% more
-  const MILESTONE_BONUS = 0.04;           // +4% output per historical milestone
+  const SAVE_VERSION = 2;
+  const COST_GROWTH = 1.13;               // each extra site unit costs 13% more
+  const PACE_MEMORY = 0.5;                // weight of the newest shift in your mining pace
+  const CREW_HALF = 2;                    // crews it takes to reach half of a site's limit
   const MAX_OFFLINE_SECONDS = 30 * 86400; // offline progress cap (30 days)
   const GOLD_EVER_MINED_OZ = 6.95e9;      // ≈216,000 t, all gold mined in history
+  const MINT_PRICE_1834 = 20.67;          // $/oz set by the Coinage Act of 1834
+  const BASE_LODE_CHANCE = 0.08;          // chance per shift of a Mother Lode
   const MONTHS = ['JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN', 'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC'];
+
+  /** Round a price to two significant figures: $4,134 reads as $4,100. */
+  function roundPrice(v) {
+    return v < 100 ? Math.round(v) : Number(v.toPrecision(2));
+  }
 
   /* ------------------------------------------------------------------------
    * Number formatting — K, M, B, T, Qa … then scientific for
@@ -106,7 +120,8 @@
     'productivity': { era: 'gold', title: 'Productivity', body: 'Output per worker or per hour. Better tools, energy and methods raise productivity, and rising productivity is the root of long-run economic growth.' },
     'division-of-labor': { era: 'gold', title: 'Division of Labor', body: "Splitting work into specialized tasks so each worker gets faster at one job. Adam Smith's 1776 pin factory example showed it could multiply output many times over." },
     'economies-of-scale': { era: 'gold', title: 'Economies of Scale', body: 'Cost advantages from operating at larger scale: big fixed costs like a steam engine or a mill are spread over more output, so each ounce becomes cheaper to produce.' },
-    'marginal-cost': { era: 'gold', title: 'Marginal Cost', body: 'The cost of producing one more unit. The richest, easiest claims are worked first, so each additional ounce tends to cost more than the last.', game: 'Each extra building costs 13% more than the previous one.' },
+    'marginal-cost': { era: 'gold', title: 'Marginal Cost', body: 'The cost of producing one more unit. The richest, easiest claims are worked first, so each additional ounce tends to cost more than the last.', game: 'Each extra crew costs 13% more than the previous one.' },
+    'diminishing-returns': { era: 'gold', title: 'Diminishing Returns', body: 'Add more of one input (workers) to a fixed input (a claim) and, past some point, each addition adds less output than the one before. The best gravel on a claim gets worked first.', game: "Each site's crews approach that site's limit: the next crew always adds less than the last." },
     'externality': { era: 'gold', title: 'Externality', body: "A cost or benefit that falls on people outside a transaction. Hydraulic mining's debris buried farms and choked rivers downstream; in 1884 the Sawyer Decision largely shut it down in California." },
     'property-rights': { era: 'gold', title: 'Property Rights', body: "Enforceable rules about who owns and may use a resource. In the lawless early goldfields, miners' meetings set claim sizes and settled disputes, creating property rights from scratch." },
     'prior-appropriation': { era: 'gold', title: 'Prior Appropriation', body: '"First in time, first in right." The Western water-law doctrine born in Gold Rush camps: whoever first diverted water for productive use holds the senior right to it.' },
@@ -134,6 +149,13 @@
     'gold-pool': { era: 'gold', title: 'London Gold Pool', body: 'From 1961, eight central banks pooled gold to hold the market price at $35/oz. Rising demand broke the pool in March 1968, leading to a two-tier gold market.' },
     'nixon-shock': { era: 'gold', title: 'Nixon Shock', body: "On August 15, 1971, President Nixon suspended the dollar's convertibility into gold, ending Bretton Woods and starting the era of floating fiat currencies.", game: 'The prestige reset that ends the Gold Era.' },
     'credibility': { era: 'gold', title: 'Central Bank Credibility', body: 'How far the public believes a central bank will do what it says, especially keep inflation low. Credible banks anchor expectations, so their policies work with less pain.', game: 'Earned by severing the gold peg; spent in the Fiat Era.' },
+    'mint-price': { era: 'gold', title: 'Official Gold Price', body: 'The price at which the U.S. Mint bought gold and the Treasury valued it: $20.67 per troy ounce from 1834 to 1933, then $35 from 1934. Under a gold standard this price is set by law, not by the market.', game: 'The Mint pays this price for every ounce you deposit.' },
+    'gold-cover': { era: 'gold', title: 'Gold Cover', body: 'The share of a currency that must be backed by gold. The Federal Reserve Act of 1913 required 40% gold behind Federal Reserve notes. Congress cut it to 25% in 1945 and removed it for deposits in 1965 and for notes in 1968.', game: 'Lower cover lets each ounce in the vault back more dollars: price ÷ cover = dollars per ounce.' },
+    'gold-certificate': { era: 'gold', title: 'Gold Certificate', body: 'Paper money fully backed by gold coin held in the Treasury and redeemable on demand, issued from 1865 until 1933.' },
+    'placer-mining': { era: 'gold', title: 'Placer Mining', body: 'Recovering gold from loose sand and gravel in streams, called placers, with pans, rockers and sluices. It needs little capital, which is why the first rushes were placer rushes.' },
+    'lode-mining': { era: 'gold', title: 'Lode Mining', body: 'Mining gold from veins in solid rock. The ore must be blasted, hoisted and crushed in stamp mills, so it takes far more capital than placer mining.' },
+    'homestake': { era: 'gold', title: 'Homestake Mine', body: 'Found in the Black Hills of Dakota Territory in 1876, it became the largest and deepest gold mine in North America and produced roughly 40 million ounces before closing in 2002.' },
+    'klondike': { era: 'gold', title: 'Klondike Gold Rush', body: "After the 1896 strike on Bonanza Creek in Canada's Yukon, about 100,000 people set out for the Klondike in 1897–98. Only around 30,000 to 40,000 made it." },
     // ---- Fiat era (previewed while locked) -----------------------------
     'fiat-money': { era: 'fiat', title: 'Fiat Money', body: 'Currency with no commodity backing. It is valuable because a government declares it legal tender and people trust it. Latin fiat: "let it be done."' },
     'fractional-reserve': { era: 'fiat', title: 'Fractional Reserve Banking', body: 'Banks keep only a fraction of deposits as reserves and lend out the rest. Loans get re-deposited and re-lent, so the banking system creates far more money than the reserves it holds.' },
@@ -152,8 +174,9 @@
   };
 
   /* ------------------------------------------------------------------------
-   * Buildings — Phase 1 (Gold Era). `tiers` names the visual stage reached
-   * by each building upgrade (tier 0 = base art, tier 5 = gilded).
+   * Sites — passive operations (Gold Era). `tiers` names the visual stage
+   * reached by each tier upgrade (0 = base art, 5 = gilded). `baseCost` is in
+   * ounces at the 1834 mint price; `unitCost` below converts it to dollars.
    * --------------------------------------------------------------------- */
   const BUILDINGS = [
     {
@@ -207,20 +230,38 @@
   ];
   const BUILDING_BY_ID = Object.fromEntries(BUILDINGS.map((b) => [b.id, b]));
 
-  /* ------------------------------------------------------------------------
-   * Upgrades
-   * --------------------------------------------------------------------- */
-  // Building tier upgrades: each doubles that building's output and advances
+  // Every site needs a permit before its first unit can be bought, and each
+  // permit opens with a charter, so new sites never appear just by waiting.
+  const PERMIT_CHARTER = {
+    prospector: 'c1848', sluice: 'c1849', camp: 'c1850', hydraulic: 'c1853',
+    stampmill: 'c1859', shaft: 'c1860', steamplant: 'c1869', vault: 'c1879',
+  };
+  // Crews mine at a share of YOUR pace (gold per second over recent shifts),
+  // so they keep up as you upgrade and do nothing until you have mined. Each
+  // site's crews approach that site's limit with diminishing returns:
+  // share = limit × n / (n + CREW_HALF). Tiers raise the limit.
+  const SITE_LIMIT = { prospector: 0.030, sluice: 0.032, camp: 0.034, hydraulic: 0.036, stampmill: 0.038, shaft: 0.040, steamplant: 0.042, vault: 0.045 };
+  const SITE_UNIT = {
+    prospector: 1, sluice: 2, camp: 2, hydraulic: 2,
+    stampmill: 11, shaft: 110, steamplant: 480, vault: 2700,
+  };
+  BUILDINGS.forEach((b) => {
+    b.limit = SITE_LIMIT[b.id] * 0.65;
+    b.unitCost = SITE_UNIT[b.id];
+    b.permitCharter = PERMIT_CHARTER[b.id];
+  });
+
+  // Site tier upgrades: each adds +50% of the site's base limit and advances
   // its artwork one visual stage. They must be bought in order.
   const TIER_RULES = [
-    { owned: 1, costMult: 10, mult: 2 },
-    { owned: 5, costMult: 50, mult: 2 },
-    { owned: 25, costMult: 500, mult: 2 },
-    { owned: 50, costMult: 50000, mult: 3 },
-    { owned: 75, costMult: 5e5, mult: 3 },
+    { owned: 1, costMult: 10 },
+    { owned: 5, costMult: 50 },
+    { owned: 10, costMult: 300 },
+    { owned: 20, costMult: 2000 },
+    { owned: 30, costMult: 15000 },
   ];
-  // Cumulative output multiplier at each visual tier (index 0 = no upgrades).
-  const TIER_MULTS = TIER_RULES.reduce((acc, r) => { acc.push(acc[acc.length - 1] * r.mult); return acc; }, [1]);
+  // Limit multiplier at each visual tier (index 0 = no upgrades).
+  const TIER_MULTS = [1, 1.5, 2, 2.5, 3, 3.5];
 
   const TIER_TEXT = {
     prospector: [
@@ -281,94 +322,165 @@
     ],
   };
 
-  const UPGRADES = [];
-
-  BUILDINGS.forEach((b) => {
-    TIER_RULES.forEach((rule, i) => {
-      const tier = i + 1;
-      const info = TIER_TEXT[b.id][i];
-      UPGRADES.push({
-        id: `${b.id}-${tier}`, kind: 'building', building: b.id, tier,
-        name: b.tiers[tier], cost: b.baseCost * rule.costMult, owned: rule.owned, mult: rule.mult,
-        year: info.year || 0, desc: info.desc,
-        requires: tier > 1 ? `${b.id}-${tier - 1}` : null,
-      });
-    });
-  });
-
-  // Strike (click) upgrades. `tool` selects the tool drawn on the click target.
-  [
-    { id: 'pick-iron', name: 'Iron Pickaxe', cost: 50, mult: 2, tool: 1, cond: (s) => s.run.clicks >= 10, hint: 'Strike the vein 10 times',
-      desc: 'Trade the borrowed shovel for a forged iron pick.' },
-    { id: 'pick-steel', name: 'Steel Pickaxe', cost: 750, mult: 2, tool: 2, cond: (s) => s.run.gold >= 300, hint: 'Mine 300 oz this era',
-      desc: 'Hardened steel holds its edge against quartz.' },
-    { id: 'black-powder', name: 'Black Powder', cost: 2e4, mult: 2, tool: 3, cond: (s) => s.run.gold >= 8000, hint: 'Mine 8,000 oz this era',
-      desc: 'Hand-drilled holes packed with powder crack the vein wide open.' },
-    { id: 'dynamite', name: "Nobel's Dynamite", cost: 5e5, pct: 0.01, tool: 4, year: 1867,
-      desc: "Alfred Nobel's 1867 patent: far more stable, and far stronger, than black powder." },
-    { id: 'pneumatic', name: 'Pneumatic Rock Drill', cost: 5e7, pct: 0.01, tool: 5, year: 1880,
-      desc: 'Compressed-air drills, proven on the Hoosac Tunnel, replace the hammer and hand steel. A strike becomes industrial.' },
-  ].forEach((u, i, arr) => {
-    UPGRADES.push(Object.assign({ kind: 'click', year: 0, requires: i ? arr[i - 1].id : null }, u));
-  });
-
-  // Policy & infrastructure upgrades: global output bonuses unlocked by history.
-  [
-    { id: 'telegraph', name: 'Transcontinental Telegraph', year: 1861.8, cost: 4e5, bonus: 0.10, icon: 'telegraph',
-      desc: 'October 1861: the telegraph links the coasts and the Pony Express folds within days. Prices and news now move at the speed of electricity.' },
-    { id: 'railroad', name: 'The Golden Spike', year: 1869.36, cost: 5e6, bonus: 0.20, icon: 'train',
-      desc: 'May 10, 1869: the Transcontinental Railroad is complete. [[transaction-costs|Transaction costs]] collapse and Eastern capital flows West.' },
-    { id: 'goldact', name: 'Gold Standard Act', year: 1900.2, cost: 6e8, bonus: 0.25, icon: 'scroll',
-      desc: 'Gold becomes the sole standard for redeeming paper money, settling the silver fight. Confidence in the [[gold-standard|gold standard]] attracts capital.' },
-    { id: 'fedact', name: 'Federal Reserve Act', year: 1913.98, cost: 4e9, bonus: 0.35, icon: 'fed',
-      desc: 'A central bank to furnish an "elastic currency" and act as lender of last resort. The [[federal-reserve|Federal Reserve]] is born. Remember this institution.' },
-    { id: 'brettonwoods', name: 'Bretton Woods Agreement', year: 1944.55, cost: 1e11, bonus: 0.50, icon: 'globe',
-      desc: "44 nations peg to the dollar and the dollar pegs to gold at $35. The dollar becomes the world's [[reserve-currency|reserve currency]]." },
-    { id: 'marshallplan', name: 'Marshall Plan', year: 1948.26, cost: 2e11, bonus: 0.40, icon: 'ship',
-      desc: 'About $13 billion rebuilds Western Europe and spreads dollars worldwide. The [[marshall-plan|Marshall Plan]] binds allies to the dollar system.' },
-  ].forEach((u) => UPGRADES.push(Object.assign({ kind: 'global', requires: null }, u)));
-
-  const UPGRADE_BY_ID = Object.fromEntries(UPGRADES.map((u) => [u.id, u]));
+  /* ------------------------------------------------------------------------
+   * Mine maps. Charters open new fields: tougher rock (hp) and richer ore
+   * (gold). The player can still choose an older field.
+   * --------------------------------------------------------------------- */
+  const MAPS = [
+    { id: 'california', name: 'American River', place: 'COLOMA, CA', charter: 'c1848', hp: 1, gold: 1, term: 'placer-mining',
+      desc: 'Loose gravel and quartz along the river. Easy to break, modest gold.' },
+    { id: 'comstock', name: 'Comstock Lode', place: 'VIRGINIA CITY, NV', charter: 'c1859', hp: 5, gold: 9, term: 'comstock',
+      desc: 'Hard quartz veins deep under Nevada. Tougher rock, far richer ore.' },
+    { id: 'blackhills', name: 'Homestake Lode', place: 'LEAD, SD', charter: 'c1876', hp: 30, gold: 80, term: 'homestake',
+      desc: 'An enormous lode of hard rock in the Black Hills.' },
+    { id: 'klondike', name: 'Klondike Creeks', place: 'DAWSON CITY, YUKON', charter: 'c1897', hp: 160, gold: 650, term: 'klondike',
+      desc: 'Frozen gravel thawed with fires, bursting with nuggets.' },
+  ];
+  const MAP_BY_ID = Object.fromEntries(MAPS.map((m) => [m.id, m]));
 
   /* ------------------------------------------------------------------------
-   * Historical timeline. The calendar advances with gold mined this era
-   * (log-interpolated between milestones). Every milestone adds +4% output.
+   * Charters: the historical timeline. Each is bought in order and needs a
+   * minimum of gold in the vault. Effects are applied in derive().
    * --------------------------------------------------------------------- */
-  const MILESTONES = [
-    { id: 'm1848', year: 1848.06, at: 0, title: "Gold at Sutter's Mill", text: 'James Marshall spots gold flakes in the tailrace of [[sutters-mill|Sutter\'s Mill]]. The rush begins.' },
-    { id: 'm1849', year: 1849.0, at: 40, title: 'The Forty-Niners', text: 'Some 90,000 fortune-seekers pour into California in a single year, paying in dust weighed by the [[troy-ounce|troy ounce]].' },
-    { id: 'm1850', year: 1850.69, at: 700, title: 'California Statehood', text: "Gold fast-tracks California into the Union as the 31st state. Miners' codes define [[property-rights|property rights]] in the meantime." },
-    { id: 'm1853', year: 1853.2, at: 6000, title: 'Hydraulic Mining', text: 'Edward Matteson turns a high-pressure hose on a hillside near Nevada City, and invents a new [[externality|externality]].' },
-    { id: 'm1857', year: 1857.7, at: 6e4, title: 'Panic of 1857', text: 'Bank failures spread, and the loss of the gold ship SS Central America deepens the [[bank-run|panic]].' },
-    { id: 'm1859', year: 1859.45, at: 2.5e5, title: 'The Comstock Lode', text: 'A fabulous silver-and-gold strike in Nevada: the [[comstock|Comstock Lode]] launches deep hard-rock mining.' },
-    { id: 'm1862', year: 1862.15, at: 1.5e6, title: 'Legal Tender Act', text: 'Congress prints [[greenbacks|greenbacks]], paper money backed by nothing but law, to fund the Civil War.' },
-    { id: 'm1869', year: 1869.36, at: 6e6, title: 'The Golden Spike', text: 'The Transcontinental Railroad is completed at Promontory Summit, Utah.' },
-    { id: 'm1873', year: 1873.12, at: 2e7, title: "The Crime of '73", text: 'The Coinage Act drops the silver dollar. [[bimetallism|Bimetallism]] ends and gold alone anchors the dollar.' },
-    { id: 'm1879', year: 1879.0, at: 6e7, title: 'Specie Resumption', text: 'Greenbacks become redeemable in gold coin again. Paper is "as good as gold": [[specie|specie]] payments resume.' },
-    { id: 'm1887', year: 1887.5, at: 1.5e8, title: 'The Cyanide Process', text: 'The MacArthur–Forrest patent unlocks low-grade ore worldwide: [[cyanide-process|cyanide process]].' },
-    { id: 'm1896', year: 1896.52, at: 4e8, title: 'Cross of Gold', text: '"You shall not crucify mankind upon a cross of gold." Bryan rails against [[deflation|deflation]] (William Jennings Bryan, 1896).' },
-    { id: 'm1900', year: 1900.2, at: 8e8, title: 'Gold Standard Act', text: 'Gold becomes the sole standard for redeeming paper money: the [[gold-standard|gold standard]] made law.' },
-    { id: 'm1907', year: 1907.8, at: 2e9, title: 'Panic of 1907', text: 'J. P. Morgan locks bankers in his library until they agree on a rescue. A [[bank-run|bank run]] without a central bank.' },
-    { id: 'm1913', year: 1913.98, at: 5e9, title: 'Federal Reserve Act', text: 'America gets a central bank, the [[federal-reserve|Federal Reserve]], to provide an "elastic currency."' },
-    { id: 'm1929', year: 1929.82, at: 1.5e10, title: 'Black Tuesday', text: 'The stock market crashes. Waves of [[bank-run|bank runs]] drain gold over the next three years.' },
-    { id: 'm1933', year: 1933.26, at: 3e10, title: 'Executive Order 6102', text: 'Private gold hoarding is outlawed. Coins and bullion go to the Fed at $20.67: [[eo-6102|Executive Order 6102]].' },
-    { id: 'm1934', year: 1934.08, at: 4.5e10, title: 'Gold Reserve Act', text: 'Gold is revalued from $20.67 to $35.00 an ounce. Your reserves gain 69% in dollar terms overnight: [[gold-reserve-act|Gold Reserve Act]].' },
-    { id: 'm1936', year: 1936.95, at: 7e10, title: 'Fort Knox', text: "The Bullion Depository is completed in Kentucky to hold the nation's gold." },
-    { id: 'm1944', year: 1944.55, at: 1.5e11, title: 'Bretton Woods', text: 'The world pegs to the dollar and the dollar to gold at $35: the [[bretton-woods|Bretton Woods system]].' },
-    { id: 'm1948', year: 1948.26, at: 2.5e11, title: 'Marshall Plan', text: 'Dollars rebuild Europe and spread worldwide: the [[marshall-plan|Marshall Plan]].' },
-    { id: 'm1960', year: 1960.8, at: 4e11, title: 'The Triffin Dilemma', text: 'A Yale economist warns the dollar-gold system contains the seeds of its own collapse: [[triffin-dilemma|Triffin dilemma]].' },
-    { id: 'm1961', year: 1961.85, at: 5e11, title: 'London Gold Pool', text: 'Eight central banks join forces to defend $35 gold: the [[gold-pool|London Gold Pool]].' },
-    { id: 'm1965', year: 1965.1, at: 6.5e11, title: "De Gaulle's Gambit", text: "France demands gold for its dollars and decries America's [[reserve-currency|exorbitant privilege]]." },
-    { id: 'm1968', year: 1968.21, at: 8e11, title: 'Gold Pool Collapses', text: 'Private demand overwhelms the pool. A two-tier gold market emerges: [[gold-pool|London Gold Pool]].' },
-    { id: 'm1971', year: 1971.62, at: 1e12, title: 'The Gold Window', text: 'Foreign claims on U.S. gold far exceed the vaults. The [[nixon-shock|Nixon Shock]] is now possible.' },
+  const CHARTERS = [
+    { id: 'c1848', year: 1848.06, title: "Gold at Sutter's Mill", cost: 0, reserves: 0,
+      text: "James Marshall spots gold flakes in the tailrace of [[sutters-mill|Sutter's Mill]]. The rush begins." },
+    { id: 'c1849', year: 1849.0, title: 'The Forty-Niners', cost: 410, reserves: 14,
+      text: 'Some 90,000 fortune-seekers pour into California in a single year, weighing their dust by the [[troy-ounce|troy ounce]].' },
+    { id: 'c1850', year: 1850.69, title: 'California Statehood', cost: 770, reserves: 38,
+      text: "Gold fast-tracks California into the Union as the 31st state. Miners' codes define [[property-rights|property rights]] in the meantime." },
+    { id: 'c1853', year: 1853.2, title: 'Hydraulic Mining', cost: 1700, reserves: 88, effects: { veins: true },
+      text: 'Edward Matteson turns a high-pressure hose on a hillside near Nevada City, and invents a new [[externality|externality]].' },
+    { id: 'c1859', year: 1859.45, title: 'The Comstock Lode', cost: 4500, reserves: 310, effects: { map: 'comstock' },
+      text: 'A fabulous silver-and-gold strike in Nevada: the [[comstock|Comstock Lode]] launches deep [[lode-mining|lode mining]].' },
+    { id: 'c1860', year: 1860.5, title: 'Square-Set Timbering', cost: 29000, reserves: 2000,
+      text: "Philip Deidesheimer's interlocking timber cubes make deep shafts safe enough to work." },
+    { id: 'c1861', year: 1861.8, title: 'Transcontinental Telegraph', cost: 95000, reserves: 6500, effects: { goldMult: 0.15 },
+      text: 'October 1861: the telegraph links the coasts and the Pony Express folds within days.' },
+    { id: 'c1867', year: 1867.4, title: "Nobel's Dynamite", cost: 260000, reserves: 19000,
+      text: "Alfred Nobel's 1867 patent: far more stable, and far stronger, than black powder." },
+    { id: 'c1869', year: 1869.36, title: 'The Golden Spike', cost: 440000, reserves: 34000, effects: { goldMult: 0.25 },
+      text: 'May 10, 1869: the Transcontinental Railroad is complete and [[transaction-costs|transaction costs]] collapse.' },
+    { id: 'c1873', year: 1873.8, title: 'The Big Bonanza', cost: 710000, reserves: 53000, effects: { lode: 0.1 },
+      text: 'Comstock miners strike the "Big Bonanza," one of the richest ore bodies ever found.' },
+    { id: 'c1876', year: 1876.3, title: 'The Homestake Lode', cost: 980000, reserves: 91000, effects: { map: 'blackhills' },
+      text: 'Gold in the Black Hills: the [[homestake|Homestake Mine]] opens, and will become the deepest in North America.' },
+    { id: 'c1879', year: 1879.0, title: 'Specie Resumption', cost: 2800000, reserves: 210000,
+      text: 'Greenbacks become redeemable in gold again, so the Treasury builds a gold reserve to back them: [[specie|specie]] payments resume.' },
+    { id: 'c1880', year: 1880.5, title: 'Pneumatic Rock Drill', cost: 4700000, reserves: 380000,
+      text: 'Compressed-air drills, proven on the Hoosac Tunnel, replace the hammer and hand steel.' },
+    { id: 'c1887', year: 1887.5, title: 'The Cyanide Process', cost: 7600000, reserves: 570000, effects: { oreMult: 2 },
+      text: 'The MacArthur–Forrest [[cyanide-process|cyanide process]] recovers fine gold once lost in the tailings.' },
+    { id: 'c1897', year: 1897.5, title: 'The Klondike Stampede', cost: 15000000, reserves: 1300000, effects: { map: 'klondike' },
+      text: 'A ton of gold steams into Seattle and 100,000 people head north: the [[klondike|Klondike Gold Rush]].' },
+    { id: 'c1900', year: 1900.2, title: 'Gold Standard Act', cost: 88000000, reserves: 5100000, effects: { goldMult: 0.25 },
+      text: 'Gold becomes the sole standard for redeeming paper money: the [[gold-standard|gold standard]] made law.' },
+    { id: 'c1913', year: 1913.98, title: 'Federal Reserve Act', cost: 420000000, reserves: 17000000, effects: { cover: 0.4 },
+      text: 'A central bank is born. [[federal-reserve|Federal Reserve]] notes need only 40% [[gold-cover|gold cover]], so each ounce backs 2.5 times as many dollars.' },
+    { id: 'c1934', year: 1934.08, title: 'Gold Reserve Act', cost: 1600000000, reserves: 40000000, effects: { price: 35 },
+      text: 'Gold is revalued from $20.67 to $35.00 an ounce by the [[gold-reserve-act|Gold Reserve Act]], so every ounce mints 69% more dollars.' },
+    { id: 'c1936', year: 1936.95, title: 'Fort Knox', cost: 2600000000, reserves: 65000000, effects: { vaultMult: 2 },
+      text: "The Bullion Depository is completed in Kentucky to hold the nation's gold." },
+    { id: 'c1944', year: 1944.55, title: 'Bretton Woods', cost: 3700000000, reserves: 98000000, effects: { goldMult: 0.5 },
+      text: 'The world pegs to the dollar and the dollar to gold at $35: the [[bretton-woods|Bretton Woods system]].' },
+    { id: 'c1945', year: 1945.45, title: 'Gold Cover Cut to 25%', cost: 5900000000, reserves: 140000000, effects: { cover: 0.25 },
+      text: 'Congress lowers the [[gold-cover|gold cover]] behind Federal Reserve notes to 25%, so each ounce backs even more dollars.' },
+    { id: 'c1968', year: 1968.21, title: 'The Gold Pool Collapses', cost: 9600000000, reserves: 200000000,
+      text: 'Private demand overwhelms the [[gold-pool|London Gold Pool]]. Closing the gold window is now possible: the [[nixon-shock|Nixon Shock]].' },
   ];
+  const CHARTER_BY_ID = Object.fromEntries(CHARTERS.map((c) => [c.id, c]));
+
+  /* ------------------------------------------------------------------------
+   * The shop. Every item states what it requires; nothing unlocks by waiting.
+   *   level    repeatable; cost grows geometrically
+   *   tool     one-time; changes how shifts play
+   *   permit   one-time; lets you build a site
+   *   tier     one-time; multiplies a site's output and evolves its art
+   *   charter  one-time; advances history (see CHARTERS)
+   * --------------------------------------------------------------------- */
+  const ITEMS = [];
+  const ITEM_BY_ID = {};
+  const add = (it) => { ITEMS.push(it); ITEM_BY_ID[it.id] = it; };
+
+  const CATEGORIES = [
+    { id: 'pickaxe', name: 'Pickaxe', blurb: 'Reach, power and pace of every swing.' },
+    { id: 'shift', name: 'Shift', blurb: 'Longer shifts, richer rock, better recovery.' },
+    { id: 'tools', name: 'Tools', blurb: 'New ways to break rock.' },
+    { id: 'sites', name: 'Sites', blurb: 'Permits and improvements for the operations that mine between shifts.' },
+    { id: 'charters', name: 'History', blurb: 'Charters move history forward and change the rules of the economy.' },
+  ];
+
+  [
+    { id: 'radius', cat: 'pickaxe', name: 'Bigger Pick', icon: 'ring', base: 18, growth: 1.55, max: 30,
+      value: (l) => 34 * Math.pow(1.07, l), show: (v) => `${Math.round(v)} reach`,
+      desc: 'A wider head hits every rock inside its reach, so each swing breaks more rock.' },
+    { id: 'damage', cat: 'pickaxe', name: 'Stronger Pick', icon: 'hammer', base: 25, growth: 1.6, max: 60,
+      value: (l) => (1 + l) * Math.pow(1.08, l), show: (v) => `${fmt(v, 1)} damage`,
+      desc: 'Better steel and a heavier head: every swing hits harder.' },
+    { id: 'speed', cat: 'pickaxe', name: 'Faster Swings', icon: 'bolt', base: 30, growth: 1.6, max: 36,
+      value: (l) => Math.max(0.08, 0.5 * Math.pow(0.95, l)), show: (v) => `${(1 / v).toFixed(1)} swings/s`,
+      desc: 'Less time between swings. Hold down to keep swinging at this pace.' },
+    { id: 'crit', cat: 'pickaxe', name: 'Sharpened Edge', icon: 'crit', base: 180, growth: 1.7, max: 20, requires: { charter: 'c1859' },
+      value: (l) => 0.02 * l, show: (v) => `${Math.round(v * 100)}% crit chance`,
+      desc: 'A keen edge finds the weak seam: a chance for a critical strike.' },
+    { id: 'critmult', cat: 'pickaxe', name: 'Heavy Head', icon: 'anvil', base: 110000, growth: 2, max: 12, requires: { charter: 'c1873' },
+      value: (l) => 3 + 0.5 * l, show: (v) => `×${v.toFixed(1)} crit damage`,
+      desc: 'Critical strikes land even harder.' },
+    { id: 'duration', cat: 'shift', name: 'Lantern Oil', icon: 'lantern', base: 40, growth: 1.85, max: 16, requires: { charter: 'c1849' },
+      value: (l) => 20 + 2.5 * l, show: (v) => `${v.toFixed(1)}s shifts`,
+      desc: 'More oil in the lamp means longer shifts underground.' },
+    { id: 'ground', cat: 'shift', name: 'Richer Ground', icon: 'rocks', base: 60, growth: 1.75, max: 15, requires: { charter: 'c1850' },
+      value: (l) => 18 + 2 * l, show: (v) => `${v} rocks in the face`,
+      desc: 'Better ground: more rock in the face at once, and it refills faster.' },
+    { id: 'assay', cat: 'shift', name: "Assayer's Eye", icon: 'scales', base: 85, growth: 1.75, max: 40, requires: { charter: 'c1853' },
+      value: (l) => Math.pow(1.15, l), show: (v) => `×${fmt(v, 2)} gold per rock`,
+      desc: 'Careful [[assay|assaying]] recovers more fine gold from every rock.' },
+    { id: 'luck', cat: 'shift', name: 'Lucky Lamp', icon: 'clover', base: 71000, growth: 2, max: 10, requires: { charter: 'c1873' },
+      value: (l) => 0.06 * l, show: (v) => `+${Math.round(v * 100)}% Mother Lode chance`,
+      desc: 'Better odds that a Mother Lode shows up during a shift.' },
+    { id: 'dynamite', cat: 'tools', name: 'Dynamite Bundles', icon: 'dynamite', base: 130000, growth: 1.9, max: 10, requires: { item: 'tool_dynamite' },
+      value: (l) => 0.15 + 0.05 * l, show: (v) => `${Math.round(v * 100)}% blast chance`,
+      desc: 'Bigger bundles: a broken rock is more likely to explode into its neighbours.' },
+    { id: 'drill', cat: 'tools', name: 'Air Compressor', icon: 'drill', base: 2400000, growth: 2, max: 10, requires: { item: 'tool_drill' },
+      value: (l) => 0.5 + 0.1 * l, show: (v) => `drill at ${Math.round(v * 100)}% of swing speed`,
+      desc: 'More air pressure: the rock drill strikes on its own, faster.' },
+  ].forEach((u) => add(Object.assign({ kind: 'level' }, u)));
+
+  [
+    { id: 'tool_foreman', name: 'Shift Foreman', icon: 'whistle', cost: 920, requires: { charter: 'c1850' }, effect: 'Next shift starts by itself',
+      desc: 'Starts the next shift on its own a few seconds after the assay report.' },
+    { id: 'tool_dynamite', name: "Nobel's Dynamite", icon: 'dynamite', cost: 78000, requires: { charter: 'c1867' }, effect: 'Broken rock can explode (15%)',
+      desc: 'A broken rock may explode (15% chance), damaging the rock around it. Blasts can chain.' },
+    { id: 'tool_drill', name: 'Pneumatic Rock Drill', icon: 'drill', cost: 1400000, requires: { charter: 'c1880' }, effect: 'Strikes on its own at 50% of your swing speed',
+      desc: 'Strikes by itself wherever your pick rests, at half your swing speed, even when you are not holding down.' },
+  ].forEach((u) => add(Object.assign({ kind: 'tool', cat: 'tools' }, u)));
+
+  BUILDINGS.forEach((b) => add({
+    id: `permit_${b.id}`, kind: 'permit', cat: 'sites', site: b.id, name: `${b.name} Permit`, icon: b.id,
+    cost: roundPrice(b.unitCost * 10), requires: { charter: b.permitCharter },
+    desc: `Licenses your first ${b.name}. ${b.desc}`,
+  }));
+
+  BUILDINGS.forEach((b) => TIER_RULES.forEach((rule, i) => {
+    const tier = i + 1;
+    const info = TIER_TEXT[b.id][i];
+    add({
+      id: `${b.id}-${tier}`, kind: 'tier', cat: 'sites', site: b.id, tier, mult: TIER_MULTS[tier], name: b.tiers[tier], icon: b.id,
+      cost: roundPrice(b.unitCost * rule.costMult), desc: info.desc,
+      requires: { site: b.id, owned: rule.owned, prev: tier > 1 ? `${b.id}-${tier - 1}` : `permit_${b.id}`, year: info.year || 0 },
+    });
+  }));
+
+  CHARTERS.forEach((c, i) => add(Object.assign({ kind: 'charter', cat: 'charters', icon: 'scroll', name: c.title,
+    requires: { charter: i ? CHARTERS[i - 1].id : null, reserves: c.reserves } }, c)));
 
   /* Phase 2 gate: the "Sever the Gold Peg" prestige reset (Nixon Shock). */
   const NIXON = {
-    cost: 1e12,
-    /** Projected Central Bank Credibility for this era's mined gold. */
-    credibility(runGold) {
-      return runGold < 1e12 ? 0 : Math.floor(10 * Math.cbrt(runGold / 1e12));
+    charter: 'c1968',
+    reserves: 400000000,
+    /** Projected Central Bank Credibility for this era's reserves. */
+    credibility(reserves) {
+      return reserves < this.reserves ? 0 : Math.floor(10 * Math.cbrt(reserves / this.reserves));
     },
   };
 
@@ -396,16 +508,6 @@
       { id: 'cpi', name: 'Inflation Meter', term: 'inflation' },
       { id: 'rate', name: 'Fed Funds Slider', term: 'federal-funds-rate' },
       { id: 'vel', name: 'Money Velocity', term: 'velocity' },
-    ],
-  };
-
-  /* Lucky strikes: a glowing nugget appears in the territory now and then. */
-  const LUCKY = {
-    spawnMin: 80, spawnMax: 200, lifetime: 13,
-    outcomes: [
-      { id: 'motherlode', weight: 50, name: 'Mother Lode', text: 'A pocket of free gold!' },
-      { id: 'fever', weight: 35, name: 'Gold Fever', text: 'Output ×7 for 77 seconds.', buff: { kind: 'production', mult: 7, duration: 77 } },
-      { id: 'bonanza', weight: 15, name: 'Bonanza', text: 'Strikes ×77 for 13 seconds.', buff: { kind: 'click', mult: 77, duration: 13 } },
     ],
   };
 
@@ -454,20 +556,22 @@
   function emptyRun(now) {
     const buildings = {};
     BUILDINGS.forEach((b) => { buildings[b.id] = 0; });
-    return { gold: 0, clicks: 0, clickGold: 0, luckyStrikes: 0, startedAt: now, buildings, upgrades: {}, milestones: { m1848: true } };
+    return {
+      reserves: 0, minted: 0, spent: 0, charters: { c1848: true }, items: {}, buildings,
+      shifts: 0, oreBroken: 0, shiftGold: 0, bestShift: 0, bestStrike: 0, lodes: 0, pace: 0, startedAt: now,
+    };
   }
 
   function createState(now = Date.now()) {
     return {
       version: SAVE_VERSION,
       era: 'gold',
-      gold: 0,
+      dollars: 0,
       run: emptyRun(now),
-      buffs: [],
       prestige: { credibility: 0, resets: 0 },
-      stats: { lifetimeGold: 0, totalClicks: 0, playTime: 0, luckyStrikes: 0, createdAt: now },
-      settings: { notation: 'suffix', motion: 'full', sound: false, buyAmount: 1, debug: false },
-      flags: { introSeen: false },
+      stats: { lifetimeGold: 0, lifetimeDollars: 0, totalShifts: 0, totalOre: 0, playTime: 0, createdAt: now, bestShift: 0, bestStrike: 0, lodes: 0 },
+      settings: { notation: 'suffix', motion: 'full', sound: true, buyAmount: 1, shopAmount: 1, shopFilter: 'all', debug: false, map: null, tab: 'mine' },
+      flags: { introSeen: false, fromV1: false },
       codex: {},
       log: [],
       savedAt: now,
@@ -476,86 +580,64 @@
 
   const num = (v, d) => (typeof v === 'number' && Number.isFinite(v) ? v : d);
 
-  /** Validate and upgrade a parsed save into a complete, current state. */
+  /**
+   * Validate and upgrade a parsed save. A v1 save (the pre-shift economy)
+   * cannot be converted, so it starts a fresh era but keeps settings, codex
+   * and play time; the engine archives the old save first.
+   */
   function migrate(raw, now = Date.now()) {
     const s = createState(now);
     if (!raw || typeof raw !== 'object') return s;
-    s.era = raw.era === 'fiat' ? 'fiat' : 'gold';
-    s.gold = Math.max(0, num(raw.gold, 0));
-    const r = raw.run || {};
-    s.run.gold = Math.max(0, num(r.gold, 0));
-    s.run.clicks = Math.max(0, num(r.clicks, 0));
-    s.run.clickGold = Math.max(0, num(r.clickGold, 0));
-    s.run.luckyStrikes = Math.max(0, num(r.luckyStrikes, 0));
-    s.run.startedAt = num(r.startedAt, now);
-    BUILDINGS.forEach((b) => { s.run.buildings[b.id] = Math.max(0, Math.floor(num(r.buildings && r.buildings[b.id], 0))); });
-    if (r.upgrades) Object.keys(r.upgrades).forEach((id) => { if (UPGRADE_BY_ID[id] && r.upgrades[id]) s.run.upgrades[id] = true; });
-    if (r.milestones) Object.keys(r.milestones).forEach((id) => { if (r.milestones[id]) s.run.milestones[id] = true; });
-    s.buffs = Array.isArray(raw.buffs)
-      ? raw.buffs.filter((b) => b && (b.kind === 'production' || b.kind === 'click') && num(b.remaining, 0) > 0)
-        .map((b) => ({ id: String(b.id || b.kind), name: String(b.name || ''), kind: b.kind, mult: num(b.mult, 1), remaining: b.remaining, duration: num(b.duration, b.remaining) }))
-      : [];
-    const p = raw.prestige || {};
-    s.prestige.credibility = Math.max(0, num(p.credibility, 0));
-    s.prestige.resets = Math.max(0, num(p.resets, 0));
-    const st = raw.stats || {};
-    Object.keys(s.stats).forEach((k) => { s.stats[k] = num(st[k], s.stats[k]); });
-    s.stats.lifetimeGold = Math.max(s.stats.lifetimeGold, s.run.gold);
     const se = raw.settings || {};
     s.settings.notation = se.notation === 'scientific' ? 'scientific' : 'suffix';
     s.settings.motion = se.motion === 'reduced' ? 'reduced' : 'full';
-    s.settings.sound = !!se.sound;
+    s.settings.sound = se.sound === undefined ? true : !!se.sound;
     s.settings.debug = !!se.debug;
     s.settings.buyAmount = [1, 10, 100, 'max'].includes(se.buyAmount) ? se.buyAmount : 1;
-    s.flags.introSeen = !!(raw.flags && raw.flags.introSeen);
     if (raw.codex) Object.keys(raw.codex).forEach((id) => { if (GLOSSARY[id] && raw.codex[id]) s.codex[id] = true; });
+    const st = raw.stats || {};
+    s.stats.playTime = Math.max(0, num(st.playTime, 0));
+    s.stats.createdAt = num(st.createdAt, now);
+    if (raw.version !== SAVE_VERSION) {
+      s.flags.fromV1 = true;
+      s.settings.sound = true; // v1 shipped with sound off; the shift plays best with it on
+      return s;
+    }
+    s.settings.shopAmount = [1, 10, 'max'].includes(se.shopAmount) ? se.shopAmount : 1;
+    s.settings.shopFilter = se.shopFilter === 'ready' ? 'ready' : 'all';
+    s.settings.map = MAP_BY_ID[se.map] ? se.map : null;
+    s.settings.tab = ['mine', 'upgrades', 'territory', 'treasury'].includes(se.tab) ? se.tab : 'mine';
+    s.era = raw.era === 'fiat' ? 'fiat' : 'gold';
+    s.dollars = Math.max(0, num(raw.dollars, 0));
+    const r = raw.run || {};
+    ['reserves', 'minted', 'spent', 'shifts', 'oreBroken', 'shiftGold', 'bestShift', 'bestStrike', 'lodes', 'pace'].forEach((k) => { s.run[k] = Math.max(0, num(r[k], 0)); });
+    s.run.startedAt = num(r.startedAt, now);
+    if (r.charters) Object.keys(r.charters).forEach((id) => { if (CHARTER_BY_ID[id] && r.charters[id]) s.run.charters[id] = true; });
+    if (r.items) Object.keys(r.items).forEach((id) => {
+      const it = ITEM_BY_ID[id];
+      if (!it || it.kind === 'charter') return;
+      const v = Math.floor(num(r.items[id], 0));
+      if (v > 0) s.run.items[id] = it.kind === 'level' ? Math.min(v, it.max) : 1;
+    });
+    BUILDINGS.forEach((b) => { s.run.buildings[b.id] = Math.max(0, Math.floor(num(r.buildings && r.buildings[b.id], 0))); });
+    Object.keys(s.stats).forEach((k) => { s.stats[k] = num(st[k], s.stats[k]); });
+    s.stats.lifetimeGold = Math.max(s.stats.lifetimeGold, s.run.reserves);
+    const p = raw.prestige || {};
+    s.prestige.credibility = Math.max(0, num(p.credibility, 0));
+    s.prestige.resets = Math.max(0, num(p.resets, 0));
+    s.flags.introSeen = !!(raw.flags && raw.flags.introSeen);
     s.log = Array.isArray(raw.log) ? raw.log.filter((e) => e && typeof e.text === 'string').slice(-40) : [];
     s.savedAt = num(raw.savedAt, now);
-    checkMilestones(s); // a newly added milestone may already be passed
     return s;
   }
 
   /* ------------------------------------------------------------------------
-   * Formulas
+   * Requirements, prices and quotes
    * --------------------------------------------------------------------- */
-  /** Total cost of `amount` buildings when `owned` are already owned. */
-  function buildingCost(def, owned, amount = 1) {
-    const r = COST_GROWTH;
-    return Math.ceil(def.baseCost * Math.pow(r, owned) * (Math.pow(r, amount) - 1) / (r - 1));
-  }
-
-  /** How many buildings `gold` can buy right now. */
-  function maxAffordable(def, owned, gold) {
-    const r = COST_GROWTH;
-    const first = def.baseCost * Math.pow(r, owned);
-    if (gold < first) return 0;
-    let n = Math.floor(Math.log((gold * (r - 1)) / first + 1) / Math.log(r));
-    while (n > 0 && buildingCost(def, owned, n) > gold) n--;
-    return n;
-  }
-
-  /** Resolve the buy-amount setting (1 / 10 / 100 / 'max') to a count and price. */
-  function purchaseQuote(state, def, amount) {
-    const owned = state.run.buildings[def.id];
-    let n = amount === 'max' ? maxAffordable(def, owned, state.gold) : amount;
-    const isMax = amount === 'max';
-    if (n < 1) n = 1;
-    return { n, cost: buildingCost(def, owned, n), isMax };
-  }
-
-  function yearFor(runGold) {
-    const ms = MILESTONES;
-    if (runGold <= 0) return ms[0].year;
-    const lg = Math.log10(runGold + 1);
-    for (let i = 0; i < ms.length - 1; i++) {
-      const a = ms[i], b = ms[i + 1];
-      if (runGold < b.at) {
-        const la = Math.log10(a.at + 1), lb = Math.log10(b.at + 1);
-        const t = Math.min(1, Math.max(0, (lg - la) / (lb - la)));
-        return a.year + t * (b.year - a.year);
-      }
-    }
-    return ms[ms.length - 1].year;
+  function yearOf(state) {
+    let y = CHARTERS[0].year;
+    for (const c of CHARTERS) if (state.run.charters[c.id] && c.year > y) y = c.year;
+    return y;
   }
 
   function dateLabel(year) {
@@ -563,71 +645,226 @@
     return `${MONTHS[Math.min(11, Math.floor((year - y) * 12))]} ${y}`;
   }
 
-  function goldPrice(state) {
-    return state.run.milestones.m1934 ? 35 : 20.67;
+  function plural(name, n) {
+    return n === 1 ? name : name.endsWith('x') ? `${name}es` : `${name}s`;
   }
 
-  function isBuildingVisible(state, def, year) {
-    return state.run.buildings[def.id] > 0 || year >= def.year;
+  function level(state, id) {
+    return state.run.items[id] || 0;
   }
 
-  function isUpgradeUnlocked(state, u, year) {
-    if (u.year && year < u.year) return false;
-    if (u.requires && !state.run.upgrades[u.requires]) return false;
-    if (u.kind === 'building') return state.run.buildings[u.building] >= u.owned;
-    if (u.cond) return u.cond(state);
-    return true;
+  function owns(state, id) {
+    const it = ITEM_BY_ID[id];
+    if (!it) return false;
+    return it.kind === 'charter' ? !!state.run.charters[id] : level(state, id) > 0;
   }
 
-  function availableUpgrades(state) {
-    const year = yearFor(state.run.gold);
-    return UPGRADES.filter((u) => !state.run.upgrades[u.id] && isUpgradeUnlocked(state, u, year))
-      .sort((a, b) => a.cost - b.cost);
+  /** Unmet requirements of an item, as short readable lines (empty = available). */
+  function missing(state, it) {
+    const req = it.requires || {};
+    const out = [];
+    if (req.charter && !state.run.charters[req.charter]) {
+      const c = CHARTER_BY_ID[req.charter];
+      out.push(`Sign ${c.title} (${Math.floor(c.year)})`);
+    }
+    if (req.item && !owns(state, req.item)) out.push(`Buy ${ITEM_BY_ID[req.item].name}`);
+    if (req.prev && !owns(state, req.prev)) out.push(`Buy ${ITEM_BY_ID[req.prev].name}`);
+    if (req.site && state.run.buildings[req.site] < (req.owned || 1)) {
+      out.push(`Own ${req.owned} ${plural(BUILDING_BY_ID[req.site].name, req.owned)} (${state.run.buildings[req.site]} now)`);
+    }
+    if (req.year && yearOf(state) < req.year) {
+      const c = CHARTERS.find((ch) => ch.year >= req.year);
+      out.push(`Reach ${Math.floor(req.year)}${c ? ` (${c.title})` : ''}`);
+    }
+    if (req.reserves && state.run.reserves < req.reserves) out.push(`${fmt(req.reserves)} oz in the vault (${fmt(state.run.reserves, 1)} now)`);
+    return out;
   }
 
-  function upgradeEffect(u) {
-    if (u.kind === 'building') return `${BUILDING_BY_ID[u.building].name} output ×${u.mult}`;
-    if (u.kind === 'click') return u.mult ? `Strike yield ×${u.mult}` : `Strikes also yield +${Math.round(u.pct * 100)}% of output/sec`;
-    return `All output +${Math.round(u.bonus * 100)}%`;
+  /** 'owned' | 'maxed' | 'available' | 'locked' */
+  function status(state, it) {
+    if (it.kind === 'level') {
+      if (level(state, it.id) >= it.max) return 'maxed';
+    } else if (owns(state, it.id)) {
+      return 'owned';
+    }
+    return missing(state, it).length ? 'locked' : 'available';
   }
 
+  function levelCost(it, lvl, n = 1) {
+    const g = it.growth;
+    return Math.ceil(it.base * Math.pow(g, lvl) * (Math.pow(g, n) - 1) / (g - 1));
+  }
+
+  function maxLevels(it, lvl, dollars) {
+    const left = it.max - lvl;
+    const first = it.base * Math.pow(it.growth, lvl);
+    if (dollars < first || left <= 0) return 0;
+    let n = Math.floor(Math.log((dollars * (it.growth - 1)) / first + 1) / Math.log(it.growth));
+    n = Math.min(n, left);
+    while (n > 0 && levelCost(it, lvl, n) > dollars) n--;
+    return n;
+  }
+
+  /** {n, cost} for buying `amount` (1 / 10 / 100 / 'max') of an item. */
+  function quote(state, it, amount = 1) {
+    if (it.kind !== 'level') return { n: 1, cost: it.cost };
+    const lvl = level(state, it.id);
+    const left = it.max - lvl;
+    if (left <= 0) return { n: 0, cost: Infinity };
+    let n = amount === 'max' ? maxLevels(it, lvl, state.dollars) : Math.min(amount, left);
+    if (n < 1) n = 1;
+    return { n, cost: levelCost(it, lvl, n) };
+  }
+
+  function buildingCost(def, owned, amount = 1) {
+    const r = COST_GROWTH;
+    return Math.ceil(def.unitCost * Math.pow(r, owned) * (Math.pow(r, amount) - 1) / (r - 1));
+  }
+
+  function maxAffordable(def, owned, dollars) {
+    const r = COST_GROWTH;
+    const first = def.unitCost * Math.pow(r, owned);
+    if (dollars < first) return 0;
+    let n = Math.floor(Math.log((dollars * (r - 1)) / first + 1) / Math.log(r));
+    while (n > 0 && buildingCost(def, owned, n) > dollars) n--;
+    return n;
+  }
+
+  function purchaseQuote(state, def, amount) {
+    const owned = state.run.buildings[def.id];
+    let n = amount === 'max' ? maxAffordable(def, owned, state.dollars) : amount;
+    const isMax = amount === 'max';
+    if (n < 1) n = 1;
+    return { n, cost: buildingCost(def, owned, n), isMax };
+  }
+
+  function hasPermit(state, siteId) {
+    return owns(state, `permit_${siteId}`);
+  }
+
+  /** What an item does, in one line, for the shop card. */
+  function effectLine(state, it, d) {
+    if (it.kind === 'level') {
+      const lvl = level(state, it.id);
+      const now = it.show(it.value(lvl));
+      return lvl >= it.max ? now : `${now} → ${it.show(it.value(lvl + 1))}`;
+    }
+    if (it.kind === 'permit') {
+      const b = BUILDING_BY_ID[it.site];
+      return `Opens a ${b.name} claim: crews mine up to ${pct(b.limit * (it.site === 'vault' && d ? d.vaultMult : 1))} of your pace`;
+    }
+    if (it.kind === 'tier') return `${BUILDING_BY_ID[it.site].name} limit ×${TIER_MULTS[it.tier - 1]} → ×${it.mult}`;
+    if (it.kind === 'tool') return it.effect || it.desc;
+    return charterEffects(it, d).join(' · ') || 'History moves forward';
+  }
+
+  /** Readable effects of a charter, including what it unlocks in the shop. */
+  function charterEffects(c, d) {
+    const e = c.effects || {};
+    const out = [];
+    if (e.map) out.push(`New mine: ${MAP_BY_ID[e.map].name}`);
+    if (e.veins) out.push('Rich veins appear in the rock');
+    if (e.goldMult) out.push(`All gold +${Math.round(e.goldMult * 100)}%`);
+    if (e.siteMult) out.push(`Crew output +${Math.round(e.siteMult * 100)}%`);
+    if (e.oreMult) out.push(`Rock yields ×${e.oreMult}`);
+    if (e.lode) out.push(`Mother Lode chance +${Math.round(e.lode * 100)}%`);
+    if (e.vaultMult) out.push(`Treasury Vault ×${e.vaultMult}`);
+    if (e.price) out.push(`Mint price $${e.price.toFixed(2)}/oz`);
+    if (e.cover) out.push(`Gold cover ${Math.round(e.cover * 100)}%`);
+    const unlocks = ITEMS.filter((it) => it.requires && it.requires.charter === c.id && it.kind !== 'charter').map((it) => it.name);
+    if (unlocks.length) out.push(`Unlocks ${unlocks.join(', ')}`);
+    return out;
+  }
+
+  function nextCharter(state) {
+    return CHARTERS.find((c) => !state.run.charters[c.id]) || null;
+  }
+
+  /* ------------------------------------------------------------------------
+   * Derived values: everything the engine and the mine need, from state.
+   * --------------------------------------------------------------------- */
   // Weights for the "industrial index" that drives the territory's smog.
   const INDUSTRY_WEIGHT = { prospector: 0.2, sluice: 0.4, camp: 0.6, hydraulic: 1, stampmill: 1.6, shaft: 1.6, steamplant: 2.4, vault: 1.2 };
   const INDUSTRY_TOTAL = Object.values(INDUSTRY_WEIGHT).reduce((a, b) => a + b, 0) * 6;
 
-  /** Everything derived from state: multipliers, rates, click value. */
+  /** Share of your pace mined by `n` crews on a site with this limit. */
+  function siteShare(limit, n) {
+    return n > 0 ? (limit * n) / (n + CREW_HALF) : 0;
+  }
+
+  /** A share as a percentage, with more digits for small shares: 38%, 4.5%, 0.25%, 0.033%. */
+  const pct = (v) => { const p = v * 100; return `${p >= 10 ? Math.round(p) : p >= 1 ? p.toFixed(1) : p >= 0.1 ? p.toFixed(2) : p.toFixed(3)}%`; };
+
   function derive(state) {
     const run = state.run;
+    const ch = run.charters;
+    const lv = (id) => level(state, id);
+    const val = (id) => ITEM_BY_ID[id].value(lv(id));
+
+    let goldMult = 1, siteMult = 1, oreMult = 1, lodeBonus = 0, vaultMult = 1, price = MINT_PRICE_1834, cover = 1;
+    const maps = [];
+    for (const c of CHARTERS) {
+      if (!ch[c.id]) continue;
+      const e = c.effects || {};
+      if (e.goldMult) goldMult *= 1 + e.goldMult;
+      if (e.siteMult) siteMult *= 1 + e.siteMult;
+      if (e.oreMult) oreMult *= e.oreMult;
+      if (e.lode) lodeBonus += e.lode;
+      if (e.vaultMult) vaultMult *= e.vaultMult;
+      if (e.price) price = e.price;
+      if (e.cover) cover = e.cover;
+    }
+    for (const m of MAPS) if (ch[m.charter]) maps.push(m.id);
+    const mapId = state.settings.map && maps.includes(state.settings.map) ? state.settings.map : maps[maps.length - 1];
+    const map = MAP_BY_ID[mapId];
+    const dollarsPerOz = price / cover;
+
     const tiers = {};
     BUILDINGS.forEach((b) => { tiers[b.id] = 0; });
-    let clickMult = 1, clickPct = 0, globalMult = 1, tool = 0;
-    for (const u of UPGRADES) {
-      if (!run.upgrades[u.id]) continue;
-      if (u.kind === 'building') tiers[u.building] = Math.max(tiers[u.building], u.tier);
-      else if (u.kind === 'click') { clickMult *= u.mult || 1; clickPct += u.pct || 0; tool = Math.max(tool, u.tool); }
-      else globalMult *= 1 + u.bonus;
-    }
-    let milestones = 0;
-    for (const m of MILESTONES) if (run.milestones[m.id]) milestones++;
-    const milestoneMult = 1 + MILESTONE_BONUS * Math.max(0, milestones - 1);
-    let prodBuff = 1, clickBuff = 1;
-    for (const b of state.buffs) {
-      if (b.kind === 'production') prodBuff *= b.mult; else clickBuff *= b.mult;
-    }
-    const unitRate = {}, buildingRate = {};
-    let baseRate = 0, industry = 0;
+    for (const it of ITEMS) if (it.kind === 'tier' && run.items[it.id]) tiers[it.site] = Math.max(tiers[it.site], it.tier);
+
+    // Each site's crews approach its limit with diminishing returns; tiers
+    // raise the limit. Crews mine that share of your pace.
+    const limit = {}, buildingShare = {}, nextShare = {}, buildingRate = {}, nextRate = {};
+    let paceShare = 0, industry = 0;
+    const pace = run.pace;
     for (const b of BUILDINGS) {
-      const unit = b.rate * TIER_MULTS[tiers[b.id]] * globalMult * milestoneMult;
-      unitRate[b.id] = unit;
-      buildingRate[b.id] = unit * run.buildings[b.id];
-      baseRate += buildingRate[b.id];
-      if (run.buildings[b.id] > 0) industry += INDUSTRY_WEIGHT[b.id] * (tiers[b.id] + 1);
+      const n = run.buildings[b.id];
+      limit[b.id] = b.limit * TIER_MULTS[tiers[b.id]] * siteMult * (b.id === 'vault' ? vaultMult : 1);
+      buildingShare[b.id] = siteShare(limit[b.id], n);
+      nextShare[b.id] = siteShare(limit[b.id], n + 1) - buildingShare[b.id];
+      buildingRate[b.id] = buildingShare[b.id] * pace;
+      nextRate[b.id] = nextShare[b.id] * pace;
+      paceShare += buildingShare[b.id];
+      if (n > 0) industry += INDUSTRY_WEIGHT[b.id] * (tiers[b.id] + 1);
     }
-    const rate = baseRate * prodBuff;
+    const siteRate = paceShare * pace;
+
+    const radius = val('radius');
+    const yieldMult = val('assay') * oreMult * goldMult;
+    const mine = {
+      map: mapId,
+      radius,
+      damage: val('damage'),
+      swing: val('speed'),
+      critChance: val('crit'),
+      critMult: val('critmult'),
+      duration: val('duration'),
+      cap: val('ground'),
+      respawn: 0.32 * Math.pow(0.92, lv('ground')),
+      hpMult: map.hp,
+      goldMult: map.gold * yieldMult,
+      lodeChance: Math.min(0.9, BASE_LODE_CHANCE + val('luck') + lodeBonus),
+      veins: !!ch.c1853,
+      dynamite: owns(state, 'tool_dynamite') ? val('dynamite') : 0,
+      blast: radius * 1.35,
+      drill: owns(state, 'tool_drill') ? val('drill') : 0,
+      foreman: owns(state, 'tool_foreman'),
+    };
+
     return {
-      tiers, tool, clickMult, clickPct, globalMult, milestoneMult, milestones,
-      prodBuff, clickBuff, unitRate, buildingRate, baseRate, rate,
-      clickValue: (clickMult + clickPct * rate) * clickBuff,
+      year: yearOf(state), goldMult, siteMult, oreMult, yieldMult, vaultMult, price, cover, dollarsPerOz,
+      maps, map, mine, tiers, pace, paceShare, limit, buildingShare, nextShare, buildingRate, nextRate, siteRate, dollarRate: siteRate * dollarsPerOz,
       industry: Math.min(1, industry / INDUSTRY_TOTAL),
     };
   }
@@ -635,109 +872,66 @@
   /* ------------------------------------------------------------------------
    * Mutations
    * --------------------------------------------------------------------- */
-  function earn(state, amount) {
-    if (!(amount > 0)) return;
-    state.gold += amount;
-    state.run.gold += amount;
-    state.stats.lifetimeGold += amount;
+  /** Put gold in the vault; the Mint issues dollars against it. Returns $. */
+  function deposit(state, oz, d) {
+    if (!(oz > 0)) return 0;
+    const dollars = oz * (d || derive(state)).dollarsPerOz;
+    state.run.reserves += oz;
+    state.run.minted += dollars;
+    state.dollars += dollars;
+    state.stats.lifetimeGold += oz;
+    state.stats.lifetimeDollars += dollars;
+    return dollars;
   }
 
-  function nextMilestone(state) {
-    for (const m of MILESTONES) if (!state.run.milestones[m.id]) return m;
-    return null;
+  /** Sites mine between shifts. Linear, so any dt (a frame or a month away) is exact. */
+  function simulate(state, dt) {
+    if (!(dt > 0)) return 0;
+    const d = derive(state);
+    const oz = d.siteRate * dt;
+    deposit(state, oz, d);
+    return oz;
   }
 
-  function checkMilestones(state, emit) {
-    for (const m of MILESTONES) {
-      if (state.run.milestones[m.id]) continue;
-      if (state.run.gold < m.at * (1 - 1e-9)) break; // milestones are ordered
-      state.run.milestones[m.id] = true;
-      if (emit) emit({ type: 'milestone', milestone: m });
-    }
+  /** Book a finished shift. Returns which records it broke. */
+  function recordShift(state, result) {
+    const r = state.run, s = state.stats;
+    const records = { shift: result.gold > s.bestShift && s.bestShift > 0, strike: result.best > s.bestStrike && s.bestStrike > 0 };
+    r.shifts++; s.totalShifts++;
+    r.oreBroken += result.ore; s.totalOre += result.ore;
+    r.shiftGold += result.gold;
+    r.lodes += result.lodes; s.lodes += result.lodes;
+    r.bestShift = Math.max(r.bestShift, result.gold); s.bestShift = Math.max(s.bestShift, result.gold);
+    r.bestStrike = Math.max(r.bestStrike, result.best); s.bestStrike = Math.max(s.bestStrike, result.best);
+    const shiftPace = Math.max(0, result.gold - (result.lodeGold || 0)) / Math.max(1, result.duration || 20);
+    r.pace = r.pace > 0 ? r.pace + (shiftPace - r.pace) * PACE_MEMORY : shiftPace;
+    return records;
   }
 
-  /**
-   * Advance the economy by `dt` seconds. Production is linear between
-   * events (buff expiry, milestone bonuses), so we step from event to event
-   * and the result is exact for any dt: one frame or thirty days offline.
-   */
-  function simulate(state, dt, emit) {
-    let guard = 0;
-    while (dt > 1e-9 && guard++ < 500) {
-      const d = derive(state);
-      let step = dt;
-      for (const b of state.buffs) if (b.remaining < step) step = b.remaining;
-      const next = nextMilestone(state);
-      if (next && d.rate > 0) step = Math.min(step, Math.max(0, (next.at - state.run.gold) / d.rate));
-      earn(state, d.rate * step);
-      if (state.buffs.length) {
-        for (const b of state.buffs) b.remaining -= step;
-        const ended = state.buffs.filter((b) => b.remaining <= 1e-6);
-        if (ended.length) {
-          state.buffs = state.buffs.filter((b) => b.remaining > 1e-6);
-          if (emit) ended.forEach((b) => emit({ type: 'buffEnd', buff: b }));
-        }
-      }
-      dt -= step;
-      checkMilestones(state, emit);
-    }
-  }
-
-  /** Manual strike on the gold vein. Returns ounces gained. */
-  function strike(state, emit) {
-    const v = derive(state).clickValue;
-    earn(state, v);
-    state.run.clicks++;
-    state.run.clickGold += v;
-    state.stats.totalClicks++;
-    checkMilestones(state, emit);
-    return v;
+  function buy(state, id, amount = 1) {
+    const it = ITEM_BY_ID[id];
+    if (!it) return { ok: false, reason: 'unknown' };
+    const st = status(state, it);
+    if (st !== 'available') return { ok: false, reason: st };
+    const q = quote(state, it, amount);
+    if (q.cost > state.dollars) return { ok: false, reason: 'funds', cost: q.cost };
+    state.dollars -= q.cost;
+    state.run.spent += q.cost;
+    if (it.kind === 'charter') state.run.charters[id] = true;
+    else if (it.kind === 'level') state.run.items[id] = level(state, id) + q.n;
+    else state.run.items[id] = 1;
+    return { ok: true, item: it, n: q.n, cost: q.cost };
   }
 
   function buyBuilding(state, id, amount) {
     const def = BUILDING_BY_ID[id];
-    if (!def) return { ok: false };
-    const year = yearFor(state.run.gold);
-    if (!isBuildingVisible(state, def, year)) return { ok: false };
+    if (!def || !hasPermit(state, id)) return { ok: false };
     const q = purchaseQuote(state, def, amount);
-    if (q.cost > state.gold) return { ok: false, cost: q.cost };
-    state.gold -= q.cost;
+    if (q.cost > state.dollars) return { ok: false, cost: q.cost };
+    state.dollars -= q.cost;
+    state.run.spent += q.cost;
     state.run.buildings[id] += q.n;
     return { ok: true, n: q.n, cost: q.cost };
-  }
-
-  function buyUpgrade(state, id) {
-    const u = UPGRADE_BY_ID[id];
-    if (!u || state.run.upgrades[id]) return { ok: false };
-    if (!isUpgradeUnlocked(state, u, yearFor(state.run.gold))) return { ok: false };
-    if (u.cost > state.gold) return { ok: false };
-    state.gold -= u.cost;
-    state.run.upgrades[id] = true;
-    return { ok: true, upgrade: u };
-  }
-
-  function rollLucky(rand = Math.random) {
-    const total = LUCKY.outcomes.reduce((a, o) => a + o.weight, 0);
-    let r = rand() * total;
-    for (const o of LUCKY.outcomes) { if ((r -= o.weight) < 0) return o; }
-    return LUCKY.outcomes[0];
-  }
-
-  /** Apply a lucky-strike outcome. Returns ounces gained (0 for buffs). */
-  function applyLucky(state, outcome, emit) {
-    state.run.luckyStrikes++;
-    state.stats.luckyStrikes++;
-    if (outcome.buff) {
-      const existing = state.buffs.find((b) => b.id === outcome.id);
-      if (existing) existing.remaining = Math.max(existing.remaining, outcome.buff.duration);
-      else state.buffs.push({ id: outcome.id, name: outcome.name, kind: outcome.buff.kind, mult: outcome.buff.mult, remaining: outcome.buff.duration, duration: outcome.buff.duration });
-      return 0;
-    }
-    const d = derive(state);
-    const gain = 13 + Math.min(state.gold * 0.15, d.rate * 900);
-    earn(state, gain);
-    checkMilestones(state, emit);
-    return gain;
   }
 
   /** Glossary ids referenced by [[id|label]] markup in a string. */
@@ -748,13 +942,13 @@
   }
 
   const Economy = {
-    SAVE_VERSION, COST_GROWTH, MILESTONE_BONUS, MAX_OFFLINE_SECONDS, GOLD_EVER_MINED_OZ, TIER_RULES, TIER_MULTS,
-    BUILDINGS, BUILDING_BY_ID, UPGRADES, UPGRADE_BY_ID, MILESTONES, GLOSSARY, NIXON, FIAT_PREVIEW, LUCKY, HEADLINES,
-    setNotation, fmt, fmtUSD, fmtTime, fmtClock,
-    createState, migrate,
-    buildingCost, maxAffordable, purchaseQuote, yearFor, dateLabel, goldPrice,
-    isBuildingVisible, isUpgradeUnlocked, availableUpgrades, upgradeEffect, derive, nextMilestone,
-    earn, checkMilestones, simulate, strike, buyBuilding, buyUpgrade, rollLucky, applyLucky, termsIn,
+    SAVE_VERSION, COST_GROWTH, PACE_MEMORY, CREW_HALF, MAX_OFFLINE_SECONDS, GOLD_EVER_MINED_OZ, MINT_PRICE_1834, BASE_LODE_CHANCE, TIER_RULES, TIER_MULTS,
+    BUILDINGS, BUILDING_BY_ID, MAPS, MAP_BY_ID, CHARTERS, CHARTER_BY_ID, CATEGORIES, ITEMS, ITEM_BY_ID,
+    GLOSSARY, NIXON, FIAT_PREVIEW, HEADLINES,
+    setNotation, fmt, fmtUSD, fmtTime, fmtClock, roundPrice,
+    createState, migrate, yearOf, dateLabel, level, owns, missing, status, quote, levelCost,
+    buildingCost, maxAffordable, purchaseQuote, hasPermit, effectLine, charterEffects, nextCharter,
+    derive, siteShare, pct, deposit, simulate, recordShift, buy, buyBuilding, termsIn,
   };
 
   root.Economy = Economy;

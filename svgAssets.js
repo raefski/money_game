@@ -753,63 +753,6 @@
   }
 
   /* ---------------------------------------------------------------------
-   * Click target: low-poly gold nugget, HUD ring and evolving tool.
-   * ------------------------------------------------------------------ */
-  const NUGGET_PTS = [[52, 112], [58, 86], [80, 66], [106, 60], [132, 68], [151, 86], [156, 112], [142, 134], [114, 145], [82, 143], [61, 130]];
-  const NUGGET_SHADES = ['#ffe7a0', '#ffdc78', '#fff0bf', '#f7cd55', '#e9b53a', '#d39a22', '#b9800f', '#a06a09', '#c48d1a', '#dba73a', '#f0c75a'];
-
-  function nugget(toolTier = 0) {
-    const cx = 104, cy = 102;
-    let facets = '';
-    NUGGET_PTS.forEach((p, i) => {
-      const q = NUGGET_PTS[(i + 1) % NUGGET_PTS.length];
-      const mx = (p[0] + q[0]) / 2 * 0.55 + cx * 0.45, my = (p[1] + q[1]) / 2 * 0.55 + cy * 0.45;
-      facets += Po(`${p[0]},${p[1]} ${q[0]},${q[1]} ${n(mx)},${n(my)}`, NUGGET_SHADES[i]);
-      facets += Po(`${p[0]},${p[1]} ${n(mx)},${n(my)} ${cx},${cy}`, NUGGET_SHADES[(i + 3) % NUGGET_SHADES.length], 'opacity=".9"');
-      facets += Po(`${q[0]},${q[1]} ${n(mx)},${n(my)} ${cx},${cy}`, NUGGET_SHADES[(i + 1) % NUGGET_SHADES.length], 'opacity=".85"');
-    });
-    const outline = NUGGET_PTS.map((p) => p.join(',')).join(' ');
-    const ticks = repeat(48, (i) => {
-      const a = (i / 48) * Math.PI * 2, r1 = i % 4 ? 86 : 82, r2 = 90;
-      return L(n(100 + Math.cos(a) * r1), n(100 + Math.sin(a) * r1), n(100 + Math.cos(a) * r2), n(100 + Math.sin(a) * r2), 'currentColor', i % 4 ? 0.6 : 1.1);
-    });
-    return `<svg viewBox="0 0 200 200" class="nugget-svg" aria-hidden="true">
-      ${C(100, 100, 98, 'url(#ffc-nuggetglow)', 'class="nugget-glow"')}
-      <g class="nst hud-ring an a-spin-slow" stroke="currentColor" opacity=".55">${ticks}</g>
-      ${C(100, 100, 94, 'none', 'class="nst" stroke="currentColor" stroke-width=".7" stroke-dasharray="2 6" opacity=".5"')}
-      ${Pa('M40 150Q50 132 74 136L132 134Q160 132 166 152Q150 164 100 166Q54 166 40 150Z', '#2b2620')}
-      ${Pa('M48 150Q60 140 80 142L128 140Q152 140 158 152', 'none', `stroke="${P.rockLt}" stroke-width="1.2" opacity=".6"`)}
-      <g class="nugget-body">
-        ${Po(outline, '#8a5c08')}${facets}
-        ${Po(outline, 'none', `stroke="#fff4c8" stroke-width="1.2" stroke-opacity=".55"`)}
-        ${C(90, 82, 2.2, '#fffbe8')}${C(97, 78, 1.1, '#fffbe8')}${C(126, 96, 1.4, '#fffbe8', 'opacity=".8"')}
-        ${glint(84, 78, 1.6, 0.2)}${glint(134, 118, 1.2, 1.4)}${glint(110, 66, 1, 2.2)}
-      </g>
-      ${toolArt(toolTier)}
-    </svg>`;
-  }
-
-  /** Tool overlay for the nugget. The engine toggles `.swing` on `.tool`. */
-  function toolArt(tier) {
-    let extra = '';
-    if (tier === 3) {
-      extra = G(`${Pa('M-9 0Q-11 -9 -9 -18L9 -18Q11 -9 9 0Z', P.woodDk)}${L(-10, -5, 10, -5, P.iron, 1.4)}${L(-10, -13, 10, -13, P.iron, 1.4)}${El(0, -18, 9, 2.6, P.wood)}${Tx(0, -7.6, 'XXX', 5, P.lamp)}${St('M4 -20Q10 -28 6 -32', P.canvasDk, 1)}${C(6, -32, 2.4, P.ember, 'class="an a-spark"')}`, 'translate(48 162)');
-    } else if (tier === 4) {
-      extra = G(`${repeat(3, (i) => R(-9 + i * 6, -22, 5.4, 22, '#c4372c', 'rx="1.4"') + R(-9 + i * 6, -22, 5.4, 3, '#e8d9b8'))}${R(-10, -14, 19, 3, P.woodDk)}${St('M0 -22Q6 -30 2 -36', '#d9c9a0', 1)}${C(2, -36, 3, P.ember, 'class="an a-spark"')}${C(2, -36, 7, 'url(#ffc-fireglow)', 'class="an a-spark"')}`, 'translate(46 164) rotate(-8)');
-    }
-    if (tier >= 5) {
-      // pneumatic rock drill pressing on the nugget, with an air hose
-      return `${extra}${St('M196 196Q180 170 168 160', P.iron, 3)}<g class="tool tool-drill">${G(`${R(-7, -46, 14, 30, 'url(#ffc-steelgrad)', 'rx="3"')}${R(-14, -48, 28, 5, P.iron, 'rx="2"')}${R(-15, -52, 5, 8, P.ironLt, 'rx="1.6"')}${R(10, -52, 5, 8, P.ironLt, 'rx="1.6"')}${R(-3, -16, 6, 8, P.ironLt)}${Po('-2,-8 2,-8 0,4', P.steelLt)}${R(-7, -36, 14, 2, P.iron)}${R(-7, -28, 14, 2, P.iron)}`, 'translate(132 70) rotate(-28)')}</g>`;
-    }
-    const head = tier === 0 ? '#6b5a4a' : tier === 1 ? '#4c5563' : 'url(#ffc-steelgrad)';
-    const handle = tier === 0 ? '#8a6a44' : P.woodLt;
-    const pick = `${L(0, 0, 54, 54, P.woodDk, 6, 'stroke-linecap="round"')}${L(0, 0, 54, 54, handle, 4.2, 'stroke-linecap="round"')}
-      ${Pa('M-22 14Q-14 -14 16 -22L20 -16Q-6 -10 -16 18Z', head)}${tier >= 2 ? St('M-18 10Q-10 -12 14 -19', '#eef3f8', 0.8, 'opacity=".8"') : ''}
-      ${R(-5, -5, 10, 10, P.iron, 'transform="rotate(45)"')}`;
-    return `${extra}<g class="tool tool-pick">${G(pick, 'translate(134 52)')}</g>`;
-  }
-
-  /* ---------------------------------------------------------------------
    * Icons
    * ------------------------------------------------------------------ */
   const UI = {
@@ -830,6 +773,13 @@
     clock: '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
     pick: '<path d="M4 20l10-10"/><path d="M8 4c4.5-.5 9 1.5 12 6"/><path d="M10.5 7.5l6 6"/>',
     spark: '<path d="M12 3l1.8 6.2L20 11l-6.2 1.8L12 19l-1.8-6.2L4 11l6.2-1.8z"/>',
+    map: '<path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>',
+    coin: '<circle cx="12" cy="12" r="8.5"/><path d="M14.5 9.2c-.6-.9-1.6-1.3-2.7-1.3-1.5 0-2.6.8-2.6 2s1.1 1.7 2.6 2 2.8.8 2.8 2.1-1.2 2.1-2.8 2.1c-1.2 0-2.3-.5-2.9-1.4M12 6.2v1.7M12 16.1v1.7"/>',
+    check: '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+    play: '<path d="M8 5.5v13l10.5-6.5z"/>',
+    pause: '<path d="M8.5 5.5v13M15.5 5.5v13"/>',
+    home: '<path d="M4 11l8-6.5 8 6.5"/><path d="M6 9.5V20h12V9.5"/>',
+    vault: '<rect x="3.5" y="4.5" width="17" height="15" rx="1.5"/><circle cx="12" cy="12" r="4"/><path d="M12 8v1.5M12 14.5V16M8 12h1.5M14.5 12H16M6 19.5v1.5M18 19.5v1.5"/>',
   };
 
   function uiIcon(name, cls = '') {
@@ -856,24 +806,22 @@
     fed: () => `${Po('4,14 20,5 36,14', P.marble)}${R(5, 14, 30, 3, P.marbleDk)}${repeat(5, (i) => R(7 + i * 5.6, 17, 3, 13, P.marble))}${R(4, 30, 32, 5, P.marbleDk)}${C(20, 10.5, 2.2, '#2ee6a6')}`,
     globe: () => `${C(20, 20, 14, '#1d4f7a')}${Pa('M13 11Q18 14 15 19Q11 22 13 27L10 25Q7 18 13 11ZM22 9Q30 12 31 19L27 22Q24 18 26 15Q22 14 22 9ZM24 26Q28 26 29 30Q24 33 22 30Z', '#4f9a5a')}${C(20, 20, 14, 'none', `stroke="${P.gold}" stroke-width="1.2"`)}${El(20, 20, 6, 14, 'none', `stroke="${P.gold}" stroke-width=".6" opacity=".7"`)}`,
     ship: () => `${Pa('M4 24L36 24L31 33L9 33Z', P.iron)}${R(8, 17, 7, 7, '#b4413a')}${R(16, 15, 7, 9, '#3f6e8c')}${R(24, 18, 6, 6, P.gold)}${L(32, 24, 32, 10, P.steel, 1.2)}${St('M2 36Q8 34 14 36T26 36T38 36', P.waterLt, 1)}`,
+    // ---- shop pictograms (v2) ----
+    ring: () => `${C(20, 20, 14, 'rgba(245,197,66,.10)', `stroke="${P.gold}" stroke-width="1.6" stroke-dasharray="4 3"`)}${C(20, 20, 3, P.goldLt)}${L(20, 3, 20, 9, P.gold, 1.4)}${L(20, 31, 20, 37, P.gold, 1.4)}${L(3, 20, 9, 20, P.gold, 1.4)}${L(31, 20, 37, 20, P.gold, 1.4)}`,
+    hammer: () => `${L(12, 34, 24, 15, P.woodLt, 3.4, 'stroke-linecap="round"')}${Po('17,8 33,17 29,24 13,15', 'url(#ffc-steelgrad)')}${Po('13,15 17,8 19,9 15,16', P.steelLt)}${L(15, 31, 18, 26, P.woodDk, 1.2)}`,
+    bolt: () => `${Po('23,3 9,22 18,22 15,37 31,15 22,15 26,3', P.gold, `stroke="${P.goldDk}" stroke-width="1" stroke-linejoin="round"`)}${Po('23,5 13,19 19,19', P.goldLt, 'opacity=".7"')}`,
+    crit: () => `${Po('20,2 23.5,14 36,10 26,19.5 35,30 22.5,25 20,38 17.5,25 5,30 14,19.5 4,10 16.5,14', P.fire)}${Po('20,9 22,16 29,14 23.5,19.5 28,26 21,23 20,30 19,23 12,26 16.5,19.5 11,14 18,16', P.lamp)}`,
+    anvil: () => `${Pa('M5 12H29Q35 12 37 8L37 15Q33 18 27 18L25 18L25 23L29 29L11 29L15 23L15 18Q9 18 5 15Z', P.iron)}${Pa('M5 12H29Q35 12 37 8', 'none', `stroke="${P.steelLt}" stroke-width="1.2"`)}${R(9, 29, 22, 4, P.ironLt, 'rx="1"')}${glint(30, 6, 1.1)}`,
+    lantern: () => `${C(20, 22, 15, 'url(#ffc-glow)')}${Pa('M14 9H26L24 13H16Z', P.iron)}${R(14.5, 13, 11, 14, P.window, 'rx="2"')}${R(14.5, 13, 11, 14, 'none', `stroke="${P.iron}" stroke-width="1.6" rx="2"`)}${L(20, 13, 20, 27, P.iron, 1.2)}${R(13, 27, 14, 4, P.iron, 'rx="1"')}${St('M16 9Q20 2 24 9', P.ironLt, 1.4)}`,
+    rocks: () => `${Pa('M3 33L8 22L16 19L21 26L19 33Z', P.rockLt)}${Pa('M17 33L22 21L31 17L37 25L36 33Z', '#6f5e4c')}${Pa('M10 33L14 27L22 27L25 33Z', '#8e7b65')}${C(26, 24, 1.8, P.gold)}${C(13, 25, 1.3, P.gold)}${C(31, 28, 1.1, P.goldLt)}${L(2, 33.5, 38, 33.5, P.dirtLt, 1.4)}`,
+    scales: () => `${L(20, 6, 20, 32, P.goldDk, 1.8)}${L(8, 10, 32, 10, P.gold, 1.8)}${C(20, 6, 2, P.gold)}${St('M8 10L4 21M8 10L12 21', P.steel, 0.8)}${St('M32 10L28 19M32 10L36 19', P.steel, 0.8)}${Pa('M3 21H13Q8 26 3 21Z', P.gold)}${Pa('M27 19H37Q32 24 27 19Z', P.gold)}${C(8, 20, 1.6, P.goldLt)}${R(13, 32, 14, 3, P.goldDk, 'rx="1"')}`,
+    clover: () => `${C(15, 15, 6, '#3f9b55')}${C(25, 15, 6, '#3f9b55')}${C(15, 25, 6, '#3f9b55')}${C(25, 25, 6, '#4fb365')}${St('M20 20Q24 30 30 36', '#2d6b3b', 2)}${C(20, 20, 2.2, '#2d6b3b')}${glint(30, 8, 1.1)}`,
+    whistle: () => `${Pa('M6 17H24Q32 17 32 24Q32 31 24 31Q17 31 17 24L17 22H6Z', 'url(#ffc-steelgrad)')}${C(24, 24, 3.2, P.iron)}${R(8, 15, 5, 2, P.steel)}${St('M33 12Q36 9 35 6M29 10Q30 6 28 4', P.steelLt, 1.2)}${St('M6 17L3 12', P.gold, 1.2)}`,
   };
 
   function picto(name, arg) {
     const fn = PICTO[name];
     return `<svg class="picto" viewBox="0 0 40 40" aria-hidden="true">${fn ? fn(arg) : ''}</svg>`;
-  }
-
-  /** Icon for an upgrade tile. */
-  function upgradeIcon(u) {
-    if (u.kind === 'building') return picto(u.building);
-    if (u.kind === 'click') {
-      if (u.tool === 1) return picto('pick', '#5a6472');
-      if (u.tool === 2) return picto('pick', 'url(#ffc-steelgrad)');
-      if (u.tool === 3) return picto('keg');
-      if (u.tool === 4) return picto('dynamite');
-      return picto('drill');
-    }
-    return picto(u.icon);
   }
 
   /* Fiat-era line icons (24×24, stroke = currentColor). */
@@ -922,7 +870,7 @@
 
   const SVGAssets = {
     P, defs, building, ART, SLOTS, SLOT_ORDER, SCENE, sceneBase, sceneInfra, sceneSlot, sceneHaze,
-    nugget, uiIcon, picto, upgradeIcon, fiatIcon, emblem, vaultDoor, glint,
+    uiIcon, picto, fiatIcon, emblem, vaultDoor, glint,
   };
   root.SVGAssets = SVGAssets;
   if (typeof module !== 'undefined' && module.exports) module.exports = SVGAssets;
