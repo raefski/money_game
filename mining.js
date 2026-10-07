@@ -416,6 +416,30 @@
           ctx.fill();
         }
       }
+      // tougher rock looks it: the more swings of your pick it takes, the darker,
+      // more layered and more heavily outlined it is
+      const tough = toughness(o);
+      if (tough > 0 && o.type !== 'nugget') {
+        ctx.save();
+        polygon(sh.pts, r);
+        ctx.clip();
+        ctx.fillStyle = `rgba(10, 8, 14, ${0.1 + tough * 0.1})`;
+        ctx.fillRect(-r, -r, r * 2, r * 2);
+        ctx.strokeStyle = `rgba(20, 18, 26, ${0.35 + tough * 0.15})`;
+        ctx.lineWidth = r * 0.07;
+        for (let i = 0; i < tough + 1; i++) {
+          const y = -r * 0.55 + i * (r * 1.1 / (tough + 1)) + r * 0.2;
+          ctx.beginPath();
+          ctx.moveTo(-r, y + Math.sin(sh.tilt + i) * r * 0.12);
+          ctx.quadraticCurveTo(0, y - r * 0.18, r, y + Math.cos(sh.tilt + i) * r * 0.12);
+          ctx.stroke();
+        }
+        ctx.restore();
+        ctx.strokeStyle = tough >= 3 ? 'rgba(150, 165, 190, 0.55)' : 'rgba(0, 0, 0, 0.55)';
+        ctx.lineWidth = 1.2 + tough * 0.9;
+        polygon(sh.pts, r);
+        ctx.stroke();
+      }
       // cracks open up as the rock takes damage
       const dmg = 1 - Math.max(0, o.hp) / o.maxHp;
       if (dmg > 0.05) {
@@ -437,7 +461,22 @@
         polygon(sh.pts, r);
         ctx.fill();
       }
+      // tough rock that has been hit shows how much is left
+      if (tough > 0 && o.hp < o.maxHp && o.hp > 0) {
+        const bw = r * 1.4, bh = Math.max(3, r * 0.14), by = -r - bh * 2.2;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
+        ctx.fillRect(-bw / 2 - 1, by - 1, bw + 2, bh + 2);
+        ctx.fillStyle = tough >= 3 ? '#ff8a1f' : GOLD;
+        ctx.fillRect(-bw / 2, by, bw * Math.max(0, o.hp) / o.maxHp, bh);
+      }
       ctx.restore();
+    }
+
+    /** 0 = one swing breaks it; 1 = 2–3 swings; 2 = 4–8; 3 = 9 or more. */
+    function toughness(o) {
+      const d = view.shift ? view.shift.stats.damage : 1;
+      const hits = Math.ceil(o.maxHp / Math.max(1e-9, d) - 1e-9);
+      return hits <= 1 ? 0 : hits <= 3 ? 1 : hits <= 8 ? 2 : 3;
     }
 
     /* ---- particles ---- */

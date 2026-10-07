@@ -590,11 +590,11 @@
         const left = Math.max(0, s.stats.duration - s.t);
         setText($('mine-time'), `${left.toFixed(1)}s`);
         setWidth($('mine-time-fill'), left / s.stats.duration);
-        toggleClass($('mine-wrap'), 'ending', left < 3 && this.view.running);
+        toggleClass(document.querySelector('.mine-panel'), 'ending', left < 3 && this.view.running);
       } else {
         setText($('mine-time'), `${dur.toFixed(1)}s`);
         setWidth($('mine-time-fill'), this.phase === 'report' ? 0 : 1);
-        toggleClass($('mine-wrap'), 'ending', false);
+        toggleClass(document.querySelector('.mine-panel'), 'ending', false);
       }
       const show = this.phase === 'ready' ? null : this.tally;
       setText($('mine-gold'), show ? oz(show.gold) : '0 oz');
@@ -654,6 +654,10 @@
       el.hidden = !html;
       setHTML(el, html);
       toggleClass($('mine-wrap'), 'running', this.phase === 'running');
+      // On a phone the page holds still during a shift, with the rock face in view.
+      const lock = this.phase === 'running' && phone();
+      if (lock && !document.documentElement.classList.contains('mine-lock')) window.scrollTo(0, 0);
+      toggleClass(document.documentElement, 'mine-lock', lock);
     },
     renderMaps() {
       const d = G.d;
