@@ -212,9 +212,15 @@
     const it = E.ITEM_BY_ID[id];
     if (!it) return false;
     const amt = it.kind === 'level' ? (amount != null ? amount : G.state.settings.shopAmount) : 1;
+    const headBefore = G.d.mine.pickTier;
     const res = E.buy(G.state, id, amt);
     if (!res.ok) { deny(el); return false; }
     refresh();
+    if (G.d.mine.pickTier > headBefore) {
+      const h = E.PICK_HEADS[G.d.mine.pickTier];
+      toast({ kicker: 'NEW PICK HEAD', title: `${h.name} pick`, text: 'Your pick hits harder, and you can see it on the rock face.', icon: `<svg class="picto" viewBox="0 0 40 40">${pickArt(G.d.mine.pickTier)}</svg>`, timeout: 4000 });
+      Sound.chime();
+    }
     if (it.kind === 'charter') onCharter(it);
     else if (it.kind === 'permit') {
       const b = E.BUILDING_BY_ID[it.site];
@@ -422,6 +428,8 @@
       });
       this.view.setReduced(reducedMotion());
       this.view.setLift(G.state.settings.lift);
+      this.view.attachPad($('mine-pad'), () => this.act(this.phase === 'paused' ? 'resume' : 'start'));
+      this.syncPad();
       if (window.ResizeObserver) new ResizeObserver(() => this.resize()).observe($('mine-wrap'));
       let fitQueued = false;
       window.addEventListener('resize', () => {
@@ -449,6 +457,13 @@
       });
       this.renderOverlay();
     },
+    /** The control pad shows on touchscreens unless turned off in Settings. */
+    syncPad() {
+      const show = matchMedia('(pointer: coarse)').matches && G.state.settings.pad;
+      if ($('mine-pad').hidden === !show) return;
+      $('mine-pad').hidden = !show;
+      this.fitHeight();
+    },
     /** Size the rock face to fill the screen between the header and the bottom bar. */
     fitHeight() {
       const wrap = $('mine-wrap');
@@ -456,7 +471,8 @@
       const r = wrap.getBoundingClientRect();
       const small = phone();
       const bar = small ? $('tabs').offsetHeight : (document.querySelector('.statusbar') || {}).offsetHeight || 0;
-      const h = Math.round(clamp(window.innerHeight - (r.top + window.scrollY) - bar - (small ? 10 : 14), small ? 300 : 380, 900));
+      const pad = $('mine-pad').hidden ? 0 : $('mine-pad').offsetHeight + 8;
+      const h = Math.round(clamp(window.innerHeight - (r.top + window.scrollY) - bar - pad - (small ? 10 : 14), small ? 260 : 380, 900));
       // Mid-shift, ignore small changes (phone toolbars) so the field does not jump.
       if (Math.abs(h - r.height) > 2 && !(this.view.running && Math.abs(h - r.height) < 80)) wrap.style.height = `${h}px`;
     },
@@ -595,7 +611,10 @@
         html = `<div class="mo-card">
           <div class="mo-kicker">SHIFT ${G.state.run.shifts + 1} · ${esc(d.map.name.toUpperCase())}</div>
           <h3>${first ? 'Your first shift' : 'Ready at the rock face'}</h3>
-          <p>${touch ? (first
+          <p>${touch && G.state.settings.pad ? (first
+            ? 'Drag on the <b>pad below the rock face</b> to move your pick, and hold to keep swinging. It hits <b>every rock inside its ring</b>, so aim for clusters. You can also tap the rocks directly.'
+            : 'Drag on the pad to move the pick; hold to swing. Aim the ring at clusters of rock and nuggets.')
+            : touch ? (first
             ? 'Hold your finger <b>just below</b> a rock: the pick floats above your fingertip, so you can watch the rock crack. It hits <b>every rock inside its ring</b>, so aim for clusters.'
             : 'Hold just below the rock: the pick floats above your finger. Aim the ring at clusters of rock and nuggets.')
             : first ? 'Tap a rock to swing your pick, or hold down to keep swinging. The pick hits <b>every rock inside its ring</b>, so aim for clusters.' : 'Tap or hold on the rock. Aim the ring at clusters of rock and nuggets.'}</p>
@@ -666,10 +685,26 @@
       if (m.dynamite) rows.push(['Dynamite', `${Math.round(m.dynamite * 100)}% blast`, 'Chance that broken rock explodes into its neighbours.']);
       if (m.drill) rows.push(['Rock drill', `${(m.drill / m.swing).toFixed(1)} hits/s`, 'Strikes on its own wherever the ring rests.']);
       rows.push(['Your pace', `${rate(d.pace)} oz/s`, 'Gold per second over your recent shifts, not counting Mother Lodes. Crews mine a share of it.']);
-      setHTML($('pick-stats'), rows.map(([k, v, tip]) => `<div class="stat-line" data-tip="text:stat" data-tip-text="${esc(tip)}"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join(''));
+      const head = E.PICK_HEADS[m.pickTier];
+      const next = E.PICK_HEADS[m.pickTier + 1];
+      const pickLine = `<div class="pick-line"><svg class="pick-art" viewBox="0 0 40 40" aria-hidden="true">${pickArt(m.pickTier)}</svg><span><b>${esc(head.name)}</b> pick${next ? ` · ${esc(next.name)} at Stronger Pick LV ${next.lv}` : ' · the finest head'}</span></div>`;
+      setHTML($('pick-stats'), pickLine + rows.map(([k, v, tip]) => `<div class="stat-line" data-tip="text:stat" data-tip-text="${esc(tip)}"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join(''));
     },
   };
   const P_GOLD = '#f5c542';
+
+  /** The pick as a 40×40 SVG drawing in its current head's colors. */
+  function pickArt(tier) {
+    const P = M.PICKS[Math.min(tier, M.PICKS.length - 1)];
+    const glow = P.glow ? `<path d="M9 22Q19 7 34 6" fill="none" stroke="${P.glow}" stroke-width="${9 + tier}" stroke-linecap="round"/>` : '';
+    return `<line x1="13" y1="34" x2="27" y2="13" stroke="${tier >= 5 ? '#6b3f1d' : '#a0703f'}" stroke-width="3.4" stroke-linecap="round"/>${glow}
+      <path d="M9 22Q19 7 34 6" fill="none" stroke="${P.head}" stroke-width="${5 + tier * 0.5}" stroke-linecap="round"/>
+      <path d="M11 19Q20 7 32 5" fill="none" stroke="${P.edge}" stroke-width="1.6" stroke-linecap="round"/>`;
+  }
+  function pickNote(lvl) {
+    const t = E.pickHead(lvl), next = E.PICK_HEADS[t + 1];
+    return `<div class="scard-note">Head: ${esc(E.PICK_HEADS[t].name)}${next ? ` · ${esc(next.name)} at LV ${next.lv}` : ''}</div>`;
+  }
 
   /* ------------------------------------------------------------------------
    * Upgrades page (the shop)
@@ -829,6 +864,7 @@
         <div class="scard-main">
           <div class="scard-top"><h4>${esc(it.name)}</h4><span class="scard-lv">${esc(badge)}</span></div>
           <div class="scard-effect">${esc(effect)}</div>
+          ${it.id === 'damage' ? pickNote(lvl) : ''}
           <p class="scard-desc">${rich(desc)}</p>
           ${req.length ? `<ul class="scard-req">${req.map((r) => `<li>${A.uiIcon('lock')}<span>${esc(r)}</span></li>`).join('')}</ul>` : ''}
         </div>
@@ -1820,7 +1856,7 @@
     E.setNotation(st.notation);
     document.body.classList.toggle('reduce-motion', st.motion === 'reduced');
     document.body.dataset.era = G.state.era;
-    if (Mine.view) { Mine.view.setReduced(reducedMotion()); Mine.view.refreshTheme(); Mine.view.setLift(st.lift); }
+    if (Mine.view) { Mine.view.setReduced(reducedMotion()); Mine.view.refreshTheme(); Mine.view.setLift(st.lift); Mine.syncPad(); }
     Debug.sync();
   }
 
@@ -1833,6 +1869,7 @@
       body: `<div class="field"><span class="field-label">Number format</span><div class="opt-row">${opt('notation', 'suffix', '1.23M · 4.56T')}${opt('notation', 'scientific', '1.23e6 · 4.56e12')}</div></div>
         <div class="field"><span class="field-label">Motion</span><div class="opt-row">${opt('motion', 'full', 'Full animation')}${opt('motion', 'reduced', 'Reduced motion')}</div></div>
         <div class="field"><span class="field-label">Pick height above your finger (touch)</span><div class="opt-row">${opt('lift', '56', 'Low')}${opt('lift', '88', 'Medium')}${opt('lift', '120', 'High')}</div></div>
+        <div class="field"><span class="field-label">Control pad under the rock face (touch)</span><div class="opt-row">${opt('pad', 'true', 'On')}${opt('pad', 'false', 'Off')}</div></div>
         <div class="field"><span class="field-label">Sound</span><div class="opt-row">${opt('sound', 'true', 'On')}${opt('sound', 'false', 'Off')}</div></div>
         <div class="field"><span class="field-label">Developer tools</span><div class="opt-row">${opt('debug', 'true', 'On')}${opt('debug', 'false', 'Off')}</div><p class="muted" style="margin:0;font-size:12px">Adds a panel for testing: add dollars or gold, sign the next charter, hire crews, skip ahead in time.</p></div>
         <div class="field"><span class="field-label">Save data</span>
@@ -1846,7 +1883,7 @@
       onOpen: (box) => {
         box.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => {
           const key = b.dataset.set;
-          const val = key === 'sound' || key === 'debug' ? b.dataset.val === 'true' : key === 'lift' ? Number(b.dataset.val) : b.dataset.val;
+          const val = key === 'sound' || key === 'debug' || key === 'pad' ? b.dataset.val === 'true' : key === 'lift' ? Number(b.dataset.val) : b.dataset.val;
           st[key] = val;
           box.querySelectorAll(`[data-set="${key}"]`).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
           applySettings();

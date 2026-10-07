@@ -35,6 +35,8 @@ The repo is a plain static site, so GitHub Pages can host it. In the repo, go to
 
 - **Navigation:** the pages sit in a bottom navigation bar. The rock face is sized to fill the screen between the header and that bar.
 - **Mining:** while a shift runs, dragging on the rock face aims the pick instead of scrolling the page. Holding a finger down keeps swinging. On a touchscreen the pick floats about 88 px above your fingertip (Settings → Pick height: Low, Medium or High) (less near the bottom edge), so your finger never hides the rock: hold just below what you want to hit.
+- **Control pad:** on touchscreens a pad under the rock face moves the pick like a laptop trackpad (drag to move, hold to swing), so your finger never covers the rocks. You can still tap rocks directly. Settings can hide the pad.
+- **Pick heads:** the pick on the rock face changes as Stronger Pick levels up, from rusty iron (LV 0) to diamond-tipped (LV 55).
 - **Tooltips:** tap an underlined term to read it, or **long-press** a site card for its details (a quick tap still buys). Tap anywhere else to close.
 - **Saves are per browser.** Use Settings → Export / Import to move one between a phone and a computer.
 - **Testing aids:** Settings → Developer tools (or `?debug` in the URL) adds a panel. It can:

@@ -398,6 +398,17 @@
    *   tier     one-time; multiplies a site's output and evolves its art
    *   charter  one-time; advances history (see CHARTERS)
    * --------------------------------------------------------------------- */
+  /** The pick head you see on the rock face, by Stronger Pick level. */
+  const PICK_HEADS = [
+    { lv: 0, name: 'Rusty Iron' }, { lv: 5, name: 'Forged Iron' }, { lv: 12, name: 'Cast Steel' },
+    { lv: 20, name: 'Tempered Steel' }, { lv: 30, name: 'Silver-Banded' }, { lv: 42, name: 'Gilded' }, { lv: 55, name: 'Diamond-Tipped' },
+  ];
+  function pickHead(lvl) {
+    let i = 0;
+    while (i + 1 < PICK_HEADS.length && lvl >= PICK_HEADS[i + 1].lv) i++;
+    return i;
+  }
+
   const ITEMS = [];
   const ITEM_BY_ID = {};
   const add = (it) => { ITEMS.push(it); ITEM_BY_ID[it.id] = it; };
@@ -570,7 +581,7 @@
       run: emptyRun(now),
       prestige: { credibility: 0, resets: 0 },
       stats: { lifetimeGold: 0, lifetimeDollars: 0, totalShifts: 0, totalOre: 0, playTime: 0, createdAt: now, bestShift: 0, bestStrike: 0, lodes: 0 },
-      settings: { notation: 'suffix', motion: 'full', sound: true, buyAmount: 1, shopAmount: 1, shopFilter: 'all', lift: 88, debug: false, map: null, tab: 'mine' },
+      settings: { notation: 'suffix', motion: 'full', sound: true, buyAmount: 1, shopAmount: 1, shopFilter: 'all', lift: 88, pad: true, debug: false, map: null, tab: 'mine' },
       flags: { introSeen: false, fromV1: false },
       codex: {},
       log: [],
@@ -606,6 +617,7 @@
     s.settings.shopAmount = [1, 10, 'max'].includes(se.shopAmount) ? se.shopAmount : 1;
     s.settings.shopFilter = se.shopFilter === 'ready' ? 'ready' : 'all';
     s.settings.lift = [56, 88, 120].includes(se.lift) ? se.lift : 88;
+    s.settings.pad = se.pad !== false;
     s.settings.map = MAP_BY_ID[se.map] ? se.map : null;
     s.settings.tab = ['mine', 'upgrades', 'territory', 'treasury'].includes(se.tab) ? se.tab : 'mine';
     s.era = raw.era === 'fiat' ? 'fiat' : 'gold';
@@ -847,6 +859,7 @@
       map: mapId,
       radius,
       damage: val('damage'),
+      pickTier: pickHead(lv('damage')),
       swing: val('speed'),
       critChance: val('crit'),
       critMult: val('critmult'),
@@ -949,7 +962,7 @@
     setNotation, fmt, fmtUSD, fmtTime, fmtClock, roundPrice,
     createState, migrate, yearOf, dateLabel, level, owns, missing, status, quote, levelCost,
     buildingCost, maxAffordable, purchaseQuote, hasPermit, effectLine, charterEffects, nextCharter,
-    derive, siteShare, pct, deposit, simulate, recordShift, buy, buyBuilding, termsIn,
+    PICK_HEADS, pickHead, derive, siteShare, pct, deposit, simulate, recordShift, buy, buyBuilding, termsIn,
   };
 
   root.Economy = Economy;

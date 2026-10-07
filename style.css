@@ -531,6 +531,33 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
 .mo-foreman .picto { width: 22px; height: 22px; }
 .mo-foreman b { color: var(--accent); font-family: var(--font-mono); }
 
+/* Touch control pad under the rock face */
+.mine-pad {
+  position: relative;
+  height: 112px;
+  margin-top: 8px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  border: 1px dashed var(--accent-line);
+  background:
+    radial-gradient(circle at 50% 50%, var(--accent-soft), transparent 70%),
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 16px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, 0.03) 0 1px, transparent 1px 16px),
+    #0a0e15;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  transition: border-color .15s, box-shadow .15s;
+}
+.mine-pad.active { border-style: solid; border-color: var(--accent); box-shadow: inset 0 0 30px -10px var(--accent-glow); }
+.pad-label { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.08em; color: var(--text-3); text-transform: uppercase; pointer-events: none; }
+.pick-art { width: 30px; height: 30px; flex: none; }
+.pick-line { display: flex; align-items: center; gap: 8px; padding: 2px 0 8px; margin-bottom: 4px; border-bottom: 1px solid rgba(36, 50, 71, 0.45); font-size: 12.5px; color: var(--text-2); }
+.pick-line b { color: var(--accent); }
+.scard-note { margin-top: 4px; font-size: 11.5px; color: var(--text-2); font-family: var(--font-mono); }
+
 /* Quick buys on the mine page */
 .quick { display: grid; gap: 6px; }
 .qbuy {

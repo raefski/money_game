@@ -196,6 +196,13 @@
       rock: '#63778b', rockLt: '#8398ac', rockDk: '#435466', quartz: '#e9f1f8', quartzLt: '#ffffff', quartzDk: '#b4c3d1', host: '#36465a', snow: true },
   };
   const GOLD = '#f5c542', GOLD_LT = '#ffe39a', GOLD_DK = '#a8740c';
+  // Pick heads by tier (see Economy.PICK_HEADS): rusty iron → diamond-tipped.
+  const PICKS = [
+    { head: '#7d5a45', edge: '#a07a5e' }, { head: '#5f6874', edge: '#97a1ad' }, { head: '#9fabba', edge: '#e6ecf3' },
+    { head: '#4f77a3', edge: '#b4d3f2' }, { head: '#c9ced8', edge: '#ffffff', glow: 'rgba(220, 232, 255, 0.55)' },
+    { head: '#f5c542', edge: '#fff1b8', glow: 'rgba(255, 205, 80, 0.7)' }, { head: '#78e3ff', edge: '#effdff', glow: 'rgba(110, 225, 255, 0.8)' },
+  ];
+  const PAD_GAIN = 1.6;       // control pad: field distance moved per pad distance
 
   /** Per-rock shape, facets, flecks and crack lines, from its seed. */
   function shapeOf(o) {
@@ -631,15 +638,31 @@
         const swing = view.swingT > 0 ? Math.sin((view.swingT / 0.14) * Math.PI) * 0.9 : 0;
         ctx.translate(R * 0.35, -R * 0.35);
         ctx.rotate(-0.6 + swing);
-        ctx.strokeStyle = '#a0703f';
-        ctx.lineWidth = 5;
-        ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(18, 18); ctx.stroke();
-        ctx.strokeStyle = '#c3ccd8';
-        ctx.lineWidth = 5;
-        ctx.beginPath(); ctx.moveTo(-12, 4); ctx.quadraticCurveTo(-2, -10, 14, -12); ctx.stroke();
+        drawPick(s.stats.pickTier || 0);
         ctx.restore();
       }
+    }
+
+    /** The pick head changes with Stronger Pick upgrades: bigger, brighter, glowing. */
+    function drawPick(tier) {
+      const P = PICKS[Math.min(tier, PICKS.length - 1)];
+      // grows with each head; drawn larger on small screens so the upgrade is easy to see
+      const k = (1 + tier * 0.14) * Math.max(1, 0.8 / view.scale);
+      ctx.scale(k, k);
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = tier >= 5 ? '#6b3f1d' : '#a0703f';
+      ctx.lineWidth = 5;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(20, 20); ctx.stroke();
+      if (tier >= 3) { ctx.strokeStyle = P.edge; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(14, 14); ctx.lineTo(18, 18); ctx.stroke(); }
+      if (P.glow) { ctx.shadowColor = P.glow; ctx.shadowBlur = 10 + tier * 2; }
+      ctx.strokeStyle = P.head;
+      ctx.lineWidth = 6 + tier * 0.6;
+      ctx.beginPath(); ctx.moveTo(-14, 5); ctx.quadraticCurveTo(-2, -11, 16, -13); ctx.stroke();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = P.edge;
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.moveTo(-12, 2); ctx.quadraticCurveTo(-2, -12, 14, -14); ctx.stroke();
+      if (tier >= 6) { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(16, -13, 2.6, 0, Math.PI * 2); ctx.arc(-14, 5, 2.6, 0, Math.PI * 2); ctx.fill(); }
     }
 
     /* ---- input ---- */
@@ -679,10 +702,54 @@
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
 
     /* ---- public API ---- */
+    /**
+     * A control pad under the rock face for touchscreens: drag to move the pick
+     * like a laptop trackpad, hold to keep swinging, so no finger covers the rocks.
+     */
+    view.attachPad = (pad, onIdleTap) => {
+      let id = null, last = null;
+      pad.addEventListener('pointerdown', (e) => {
+        if (e.button != null && e.button > 0) return;
+        e.preventDefault();
+        if (!view.running || view.paused) { if (onIdleTap) onIdleTap(); return; }
+        const s = view.shift;
+        id = e.pointerId;
+        last = { x: e.clientX, y: e.clientY };
+        try { pad.setPointerCapture(id); } catch (_) { /* ignore */ }
+        view.pointerType = 'pad';
+        view.finger = null;
+        if (!view.aim) view.aim = { x: s.w / 2, y: s.h / 2 };
+        view.holding = true;
+        pad.classList.add('active');
+        if (s.t - view.lastStrike >= s.stats.swing) doStrike('pick');
+        else view.queued = true;
+      });
+      pad.addEventListener('pointermove', (e) => {
+        if (e.pointerId !== id || !last || !view.shift || !view.aim) return;
+        const s = view.shift, k = PAD_GAIN / view.scale;
+        view.aim = {
+          x: Math.min(s.w, Math.max(0, view.aim.x + (e.clientX - last.x) * k)),
+          y: Math.min(s.h, Math.max(0, view.aim.y + (e.clientY - last.y) * k)),
+        };
+        last = { x: e.clientX, y: e.clientY };
+      });
+      const up = (e) => {
+        if (e.pointerId !== id) return;
+        id = null;
+        last = null;
+        view.holding = false;
+        pad.classList.remove('active');
+      };
+      pad.addEventListener('pointerup', up);
+      pad.addEventListener('pointercancel', up);
+      pad.addEventListener('contextmenu', (e) => e.preventDefault());
+    };
+
     view.start = (stats, seed) => {
       view.shift = createShift(stats, { aspect: view.cssH / view.cssW, seed: seed || Math.floor(Math.random() * 1e9) });
       view.running = true;
       view.lastStrike = -1e9;
+      view.aim = { x: view.shift.w / 2, y: view.shift.h / 2 };
       view.nextDrill = stats.drill ? stats.swing / stats.drill : Infinity;
       view.particles = [];
       view.popups = [];
@@ -734,7 +801,7 @@
     return view;
   }
 
-  const Mining = { AREA, ORES, PALETTES, TOUCH_LIFT, fieldSize, createShift, update, strike, bestAim, simulate, createView };
+  const Mining = { AREA, ORES, PALETTES, PICKS, TOUCH_LIFT, fieldSize, createShift, update, strike, bestAim, simulate, createView };
   root.Mining = Mining;
   if (typeof module !== 'undefined' && module.exports) module.exports = Mining;
 })(typeof window !== 'undefined' ? window : globalThis);
