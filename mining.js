@@ -22,7 +22,7 @@
   };
   const BLAST_DAMAGE = 0.6;   // dynamite hits for this share of pick damage
   const MAX_BLASTS = 30;      // chain reactions stop here, per strike
-  const TOUCH_LIFT = 56;      // CSS px: on touch the pick floats this far above the fingertip
+  const TOUCH_LIFT = 88;      // CSS px: default height of the pick above the fingertip on touch
 
   function rng(seed) {
     let s = (seed >>> 0) || 1;
@@ -241,7 +241,7 @@
       aim: null, finger: null, holding: false, queued: false, lastStrike: -1e9, nextDrill: 0,
       particles: [], popups: [], rings: [], swingT: 0, shakeT: 0,
       scale: 1, ox: 0, oy: 0, cssW: 0, cssH: 0, dpr: 1, bg: null, bgKey: '',
-      accent: '#f5c542', reduced: false, pointerType: 'mouse',
+      accent: '#f5c542', reduced: false, pointerType: 'mouse', lift: TOUCH_LIFT,
     };
 
     function readAccent() {
@@ -271,7 +271,7 @@
 
     /**
      * Where a pointer aims, in field units. A fingertip would hide the rock it
-     * is breaking, so on touch the pick floats TOUCH_LIFT px above it. Near the
+     * is breaking, so on touch the pick floats view.lift px above it. Near the
      * bottom edge the lift shrinks, so every rock stays reachable.
      */
     function aimFrom(e) {
@@ -283,7 +283,7 @@
       }
       const top = view.oy;
       const bottom = view.shift ? view.oy + view.shift.h * view.scale : view.cssH;
-      const ay = Math.min(bottom, Math.max(top, cy - Math.min(TOUCH_LIFT, Math.max(0, bottom - cy))));
+      const ay = Math.min(bottom, Math.max(top, cy - Math.min(view.lift, Math.max(0, bottom - cy))));
       view.finger = { x: (cx - view.ox) / view.scale, y: (cy - view.oy) / view.scale };
       return { x: (cx - view.ox) / view.scale, y: (ay - view.oy) / view.scale };
     }
@@ -728,6 +728,7 @@
     view.resize = resize;
     view.setReduced = (r) => { view.reduced = !!r; };
     view.refreshTheme = readAccent;
+    view.setLift = (px) => { view.lift = Math.max(0, Number(px) || TOUCH_LIFT); };
     view.abort = () => { view.running = false; view.holding = false; canvas.classList.remove('live'); };
     resize();
     return view;

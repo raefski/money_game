@@ -570,7 +570,7 @@
       run: emptyRun(now),
       prestige: { credibility: 0, resets: 0 },
       stats: { lifetimeGold: 0, lifetimeDollars: 0, totalShifts: 0, totalOre: 0, playTime: 0, createdAt: now, bestShift: 0, bestStrike: 0, lodes: 0 },
-      settings: { notation: 'suffix', motion: 'full', sound: true, buyAmount: 1, shopAmount: 1, shopFilter: 'all', debug: false, map: null, tab: 'mine' },
+      settings: { notation: 'suffix', motion: 'full', sound: true, buyAmount: 1, shopAmount: 1, shopFilter: 'all', lift: 88, debug: false, map: null, tab: 'mine' },
       flags: { introSeen: false, fromV1: false },
       codex: {},
       log: [],
@@ -605,6 +605,7 @@
     }
     s.settings.shopAmount = [1, 10, 'max'].includes(se.shopAmount) ? se.shopAmount : 1;
     s.settings.shopFilter = se.shopFilter === 'ready' ? 'ready' : 'all';
+    s.settings.lift = [56, 88, 120].includes(se.lift) ? se.lift : 88;
     s.settings.map = MAP_BY_ID[se.map] ? se.map : null;
     s.settings.tab = ['mine', 'upgrades', 'territory', 'treasury'].includes(se.tab) ? se.tab : 'mine';
     s.era = raw.era === 'fiat' ? 'fiat' : 'gold';

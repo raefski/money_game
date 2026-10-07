@@ -421,6 +421,7 @@
         fmtGold: (v) => fmt(v, v < 10 ? 2 : 1),
       });
       this.view.setReduced(reducedMotion());
+      this.view.setLift(G.state.settings.lift);
       if (window.ResizeObserver) new ResizeObserver(() => this.resize()).observe($('mine-wrap'));
       let fitQueued = false;
       window.addEventListener('resize', () => {
@@ -1819,7 +1820,7 @@
     E.setNotation(st.notation);
     document.body.classList.toggle('reduce-motion', st.motion === 'reduced');
     document.body.dataset.era = G.state.era;
-    if (Mine.view) { Mine.view.setReduced(reducedMotion()); Mine.view.refreshTheme(); }
+    if (Mine.view) { Mine.view.setReduced(reducedMotion()); Mine.view.refreshTheme(); Mine.view.setLift(st.lift); }
     Debug.sync();
   }
 
@@ -1831,6 +1832,7 @@
       title: 'Settings & saves',
       body: `<div class="field"><span class="field-label">Number format</span><div class="opt-row">${opt('notation', 'suffix', '1.23M · 4.56T')}${opt('notation', 'scientific', '1.23e6 · 4.56e12')}</div></div>
         <div class="field"><span class="field-label">Motion</span><div class="opt-row">${opt('motion', 'full', 'Full animation')}${opt('motion', 'reduced', 'Reduced motion')}</div></div>
+        <div class="field"><span class="field-label">Pick height above your finger (touch)</span><div class="opt-row">${opt('lift', '56', 'Low')}${opt('lift', '88', 'Medium')}${opt('lift', '120', 'High')}</div></div>
         <div class="field"><span class="field-label">Sound</span><div class="opt-row">${opt('sound', 'true', 'On')}${opt('sound', 'false', 'Off')}</div></div>
         <div class="field"><span class="field-label">Developer tools</span><div class="opt-row">${opt('debug', 'true', 'On')}${opt('debug', 'false', 'Off')}</div><p class="muted" style="margin:0;font-size:12px">Adds a panel for testing: add dollars or gold, sign the next charter, hire crews, skip ahead in time.</p></div>
         <div class="field"><span class="field-label">Save data</span>
@@ -1844,7 +1846,7 @@
       onOpen: (box) => {
         box.querySelectorAll('[data-set]').forEach((b) => b.addEventListener('click', () => {
           const key = b.dataset.set;
-          const val = key === 'sound' || key === 'debug' ? b.dataset.val === 'true' : b.dataset.val;
+          const val = key === 'sound' || key === 'debug' ? b.dataset.val === 'true' : key === 'lift' ? Number(b.dataset.val) : b.dataset.val;
           st[key] = val;
           box.querySelectorAll(`[data-set="${key}"]`).forEach((x) => x.setAttribute('aria-pressed', String(x === b)));
           applySettings();

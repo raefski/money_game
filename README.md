@@ -34,7 +34,7 @@ To serve it instead, run `python3 -m http.server` and open `http://localhost:800
 The repo is a plain static site, so GitHub Pages can host it. In the repo, go to **Settings → Pages**, set **Source** to *Deploy from a branch*, pick **main** and **/ (root)**, and save. A minute later it is live at `https://<user>.github.io/<repo>/`.
 
 - **Navigation:** the pages sit in a bottom navigation bar. The rock face is sized to fill the screen between the header and that bar.
-- **Mining:** while a shift runs, dragging on the rock face aims the pick instead of scrolling the page. Holding a finger down keeps swinging. On a touchscreen the pick floats 56 px above your fingertip (less near the bottom edge), so your finger never hides the rock: hold just below what you want to hit.
+- **Mining:** while a shift runs, dragging on the rock face aims the pick instead of scrolling the page. Holding a finger down keeps swinging. On a touchscreen the pick floats about 88 px above your fingertip (Settings → Pick height: Low, Medium or High) (less near the bottom edge), so your finger never hides the rock: hold just below what you want to hit.
 - **Tooltips:** tap an underlined term to read it, or **long-press** a site card for its details (a quick tap still buys). Tap anywhere else to close.
 - **Saves are per browser.** Use Settings → Export / Import to move one between a phone and a computer.
 - **Testing aids:** Settings → Developer tools (or `?debug` in the URL) adds a panel. It can:
