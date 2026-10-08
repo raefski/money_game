@@ -246,7 +246,7 @@
     stampmill: 11, shaft: 110, steamplant: 480, vault: 2700,
   };
   BUILDINGS.forEach((b) => {
-    b.limit = SITE_LIMIT[b.id] * 0.65;
+    b.limit = SITE_LIMIT[b.id] * 0.55;
     b.unitCost = SITE_UNIT[b.id];
     b.permitCharter = PERMIT_CHARTER[b.id];
   });
@@ -329,11 +329,11 @@
   const MAPS = [
     { id: 'california', name: 'American River', place: 'COLOMA, CA', charter: 'c1848', hp: 1, gold: 1, term: 'placer-mining',
       desc: 'Loose gravel and quartz along the river. Easy to break, modest gold.' },
-    { id: 'comstock', name: 'Comstock Lode', place: 'VIRGINIA CITY, NV', charter: 'c1859', hp: 5, gold: 9, term: 'comstock',
+    { id: 'comstock', name: 'Comstock Lode', place: 'VIRGINIA CITY, NV', charter: 'c1859', hp: 7, gold: 9, term: 'comstock',
       desc: 'Hard quartz veins deep under Nevada. Tougher rock, far richer ore.' },
-    { id: 'blackhills', name: 'Homestake Lode', place: 'LEAD, SD', charter: 'c1876', hp: 30, gold: 80, term: 'homestake',
+    { id: 'blackhills', name: 'Homestake Lode', place: 'LEAD, SD', charter: 'c1876', hp: 42, gold: 80, term: 'homestake',
       desc: 'An enormous lode of hard rock in the Black Hills.' },
-    { id: 'klondike', name: 'Klondike Creeks', place: 'DAWSON CITY, YUKON', charter: 'c1897', hp: 160, gold: 650, term: 'klondike',
+    { id: 'klondike', name: 'Klondike Creeks', place: 'DAWSON CITY, YUKON', charter: 'c1897', hp: 280, gold: 650, term: 'klondike',
       desc: 'Frozen gravel thawed with fires, bursting with nuggets.' },
   ];
   const MAP_BY_ID = Object.fromEntries(MAPS.map((m) => [m.id, m]));
@@ -381,11 +381,11 @@
       text: 'Gold is revalued from $20.67 to $35.00 an ounce by the [[gold-reserve-act|Gold Reserve Act]], so every ounce mints 69% more dollars.' },
     { id: 'c1936', year: 1936.95, title: 'Fort Knox', cost: 2600000000, reserves: 65000000, effects: { vaultMult: 2 },
       text: "The Bullion Depository is completed in Kentucky to hold the nation's gold." },
-    { id: 'c1944', year: 1944.55, title: 'Bretton Woods', cost: 3700000000, reserves: 98000000, effects: { goldMult: 0.5 },
-      text: 'The world pegs to the dollar and the dollar to gold at $35: the [[bretton-woods|Bretton Woods system]].' },
-    { id: 'c1945', year: 1945.45, title: 'Gold Cover Cut to 25%', cost: 5900000000, reserves: 140000000, effects: { cover: 0.25 },
-      text: 'Congress lowers the [[gold-cover|gold cover]] behind Federal Reserve notes to 25%, so each ounce backs even more dollars.' },
-    { id: 'c1968', year: 1968.21, title: 'The Gold Pool Collapses', cost: 9600000000, reserves: 200000000,
+    { id: 'c1944', year: 1944.55, title: 'Bretton Woods', cost: 3700000000, reserves: 98000000, effects: { goldMult: 0.5, drain: 0.0003 },
+      text: 'The world pegs to the dollar and the dollar to gold at $35: the [[bretton-woods|Bretton Woods system]]. Foreign central banks can now trade their dollars for your gold, and they start to.' },
+    { id: 'c1945', year: 1945.45, title: 'Gold Cover Cut to 25%', cost: 5900000000, reserves: 70000000, effects: { cover: 0.25, drain: 0.0006 },
+      text: 'Congress lowers the [[gold-cover|gold cover]] behind Federal Reserve notes to 25%, so each ounce backs even more dollars, and more dollars abroad come back asking for gold: the [[triffin-dilemma|Triffin dilemma]].' },
+    { id: 'c1968', year: 1968.21, title: 'The Gold Pool Collapses', cost: 9600000000, reserves: 60000000, effects: { drain: 0.0012 },
       text: 'Private demand overwhelms the [[gold-pool|London Gold Pool]]. Closing the gold window is now possible: the [[nixon-shock|Nixon Shock]].' },
   ];
   const CHARTER_BY_ID = Object.fromEntries(CHARTERS.map((c) => [c.id, c]));
@@ -426,7 +426,7 @@
       value: (l) => 34 * Math.pow(1.07, l), show: (v) => `${Math.round(v)} reach`,
       desc: 'A wider head hits every rock inside its reach, so each swing breaks more rock.' },
     { id: 'damage', cat: 'pickaxe', name: 'Stronger Pick', icon: 'hammer', base: 25, growth: 1.6, max: 60,
-      value: (l) => (1 + l) * Math.pow(1.08, l), show: (v) => `${fmt(v, 1)} damage`,
+      value: (l) => (1 + l) * Math.pow(1.065, l), show: (v) => `${fmt(v, 1)} damage`,
       desc: 'Better steel and a heavier head: every swing hits harder.' },
     { id: 'speed', cat: 'pickaxe', name: 'Faster Swings', icon: 'bolt', base: 30, growth: 1.6, max: 36,
       value: (l) => Math.max(0.08, 0.5 * Math.pow(0.95, l)), show: (v) => `${(1 / v).toFixed(1)} swings/s`,
@@ -450,7 +450,7 @@
       value: (l) => 0.06 * l, show: (v) => `+${Math.round(v * 100)}% Mother Lode chance`,
       desc: 'Better odds that a Mother Lode shows up during a shift.' },
     { id: 'dynamite', cat: 'tools', name: 'Dynamite Bundles', icon: 'dynamite', base: 130000, growth: 1.9, max: 10, requires: { item: 'tool_dynamite' },
-      value: (l) => 0.15 + 0.05 * l, show: (v) => `${Math.round(v * 100)}% blast chance`,
+      value: (l) => 0.1 + 0.04 * l, show: (v) => `${Math.round(v * 100)}% blast chance`,
       desc: 'Bigger bundles: a broken rock is more likely to explode into its neighbours.' },
     { id: 'drill', cat: 'tools', name: 'Air Compressor', icon: 'drill', base: 2400000, growth: 2, max: 10, requires: { item: 'tool_drill' },
       value: (l) => 0.5 + 0.1 * l, show: (v) => `drill at ${Math.round(v * 100)}% of swing speed`,
@@ -460,8 +460,8 @@
   [
     { id: 'tool_foreman', name: 'Shift Foreman', icon: 'whistle', cost: 920, requires: { charter: 'c1850' }, effect: 'Next shift starts by itself',
       desc: 'Starts the next shift on its own a few seconds after the assay report.' },
-    { id: 'tool_dynamite', name: "Nobel's Dynamite", icon: 'dynamite', cost: 78000, requires: { charter: 'c1867' }, effect: 'Broken rock can explode (15%)',
-      desc: 'A broken rock may explode (15% chance), damaging the rock around it. Blasts can chain.' },
+    { id: 'tool_dynamite', name: "Nobel's Dynamite", icon: 'dynamite', cost: 78000, requires: { charter: 'c1867' }, effect: 'Broken rock can explode (10%)',
+      desc: 'A broken rock may explode (10% chance), damaging the rock around it. Blasts can chain.' },
     { id: 'tool_drill', name: 'Pneumatic Rock Drill', icon: 'drill', cost: 1400000, requires: { charter: 'c1880' }, effect: 'Strikes on its own at 50% of your swing speed',
       desc: 'Strikes by itself wherever your pick rests, at half your swing speed, even when you are not holding down.' },
   ].forEach((u) => add(Object.assign({ kind: 'tool', cat: 'tools' }, u)));
@@ -486,12 +486,26 @@
     requires: { charter: i ? CHARTERS[i - 1].id : null, reserves: c.reserves } }, c)));
 
   /* Phase 2 gate: the "Sever the Gold Peg" prestige reset (Nixon Shock). */
+  // Once the 1968 charter is signed the gold window can be closed. Credibility
+  // grows with the gold still in the vault and with how long you defended the
+  // peg (up to ×2 after 20 minutes). If the vault falls below a quarter of its
+  // peak, a run on the window closes it for you at half the payout.
   const NIXON = {
     charter: 'c1968',
-    reserves: 400000000,
-    /** Projected Central Bank Credibility for this era's reserves. */
-    credibility(reserves) {
-      return reserves < this.reserves ? 0 : Math.floor(10 * Math.cbrt(reserves / this.reserves));
+    unit: 1e7,              // oz of reserves for 10 Credibility (cube-root scale)
+    defendFull: 1200,       // seconds of defending for the full ×2
+    crisisShare: 0.25,      // vault below this share of its peak → forced closing
+    bonusPerPoint: 0.1,     // each Credibility point: +10% Mint payouts, permanently
+    defendMult(run) { return 1 + Math.min(1, (run.defended || 0) / this.defendFull); },
+    credibility(state, forced = false) {
+      const r = state.run;
+      if (!r.charters[this.charter]) return 0;
+      const base = 10 * Math.cbrt(Math.max(0, r.reserves) / this.unit);
+      return Math.floor(base * this.defendMult(r) * (forced ? 0.5 : 1));
+    },
+    inCrisis(state) {
+      const r = state.run;
+      return !!r.charters[this.charter] && r.peak > 0 && r.reserves < r.peak * this.crisisShare;
     },
   };
 
@@ -570,6 +584,7 @@
     return {
       reserves: 0, minted: 0, spent: 0, charters: { c1848: true }, items: {}, buildings,
       shifts: 0, oreBroken: 0, shiftGold: 0, bestShift: 0, bestStrike: 0, lodes: 0, pace: 0, startedAt: now,
+      drained: 0, peak: 0, defended: 0,
     };
   }
 
@@ -623,7 +638,7 @@
     s.era = raw.era === 'fiat' ? 'fiat' : 'gold';
     s.dollars = Math.max(0, num(raw.dollars, 0));
     const r = raw.run || {};
-    ['reserves', 'minted', 'spent', 'shifts', 'oreBroken', 'shiftGold', 'bestShift', 'bestStrike', 'lodes', 'pace'].forEach((k) => { s.run[k] = Math.max(0, num(r[k], 0)); });
+    ['reserves', 'minted', 'spent', 'shifts', 'oreBroken', 'shiftGold', 'bestShift', 'bestStrike', 'lodes', 'pace', 'drained', 'peak', 'defended'].forEach((k) => { s.run[k] = Math.max(0, num(r[k], 0)); });
     s.run.startedAt = num(r.startedAt, now);
     if (r.charters) Object.keys(r.charters).forEach((id) => { if (CHARTER_BY_ID[id] && r.charters[id]) s.run.charters[id] = true; });
     if (r.items) Object.keys(r.items).forEach((id) => {
@@ -814,6 +829,7 @@
     const lv = (id) => level(state, id);
     const val = (id) => ITEM_BY_ID[id].value(lv(id));
 
+    let drain = 0;
     let goldMult = 1, siteMult = 1, oreMult = 1, lodeBonus = 0, vaultMult = 1, price = MINT_PRICE_1834, cover = 1;
     const maps = [];
     for (const c of CHARTERS) {
@@ -826,11 +842,13 @@
       if (e.vaultMult) vaultMult *= e.vaultMult;
       if (e.price) price = e.price;
       if (e.cover) cover = e.cover;
+      if (e.drain) drain = e.drain;
     }
     for (const m of MAPS) if (ch[m.charter]) maps.push(m.id);
     const mapId = state.settings.map && maps.includes(state.settings.map) ? state.settings.map : maps[maps.length - 1];
     const map = MAP_BY_ID[mapId];
-    const dollarsPerOz = price / cover;
+    const credMult = 1 + NIXON.bonusPerPoint * state.prestige.credibility;
+    const dollarsPerOz = (price / cover) * credMult;
 
     const tiers = {};
     BUILDINGS.forEach((b) => { tiers[b.id] = 0; });
@@ -878,7 +896,7 @@
 
     return {
       year: yearOf(state), goldMult, siteMult, oreMult, yieldMult, vaultMult, price, cover, dollarsPerOz,
-      maps, map, mine, tiers, pace, paceShare, limit, buildingShare, nextShare, buildingRate, nextRate, siteRate, dollarRate: siteRate * dollarsPerOz,
+      drain, drainRate: drain * state.run.reserves, credMult, maps, map, mine, tiers, pace, paceShare, limit, buildingShare, nextShare, buildingRate, nextRate, siteRate, dollarRate: siteRate * dollarsPerOz,
       industry: Math.min(1, industry / INDUSTRY_TOTAL),
     };
   }
@@ -891,6 +909,7 @@
     if (!(oz > 0)) return 0;
     const dollars = oz * (d || derive(state)).dollarsPerOz;
     state.run.reserves += oz;
+    if (state.run.charters[NIXON.charter]) state.run.peak = Math.max(state.run.peak, state.run.reserves);
     state.run.minted += dollars;
     state.dollars += dollars;
     state.stats.lifetimeGold += oz;
@@ -898,13 +917,40 @@
     return dollars;
   }
 
-  /** Sites mine between shifts. Linear, so any dt (a frame or a month away) is exact. */
+  /**
+   * Crews mine between shifts, and after Bretton Woods foreign banks drain the
+   * vault at a share of it per second. Solved in closed form
+   * (dR/dt = crews − drain·R), so any dt (a frame or a month away) is exact.
+   */
   function simulate(state, dt) {
     if (!(dt > 0)) return 0;
     const d = derive(state);
+    const r = state.run;
     const oz = d.siteRate * dt;
-    deposit(state, oz, d);
+    if (r.charters[NIXON.charter]) r.defended += dt;
+    if (d.drain > 0) {
+      const eq = d.siteRate / d.drain;
+      const after = eq + (r.reserves - eq) * Math.exp(-d.drain * dt);
+      const before = r.reserves;
+      deposit(state, oz, d);          // dollars for the crews' gold
+      r.reserves = Math.max(0, after);
+      r.drained += Math.max(0, before + oz - r.reserves);
+    } else {
+      deposit(state, oz, d);
+    }
     return oz;
+  }
+
+  /** Close the gold window: bank Credibility and start a new Gold Era. Returns the Credibility won. */
+  function sever(state, forced = false, now = Date.now()) {
+    const cred = NIXON.credibility(state, forced);
+    state.prestige.credibility += cred;
+    state.prestige.resets += 1;
+    state.prestige.lastGain = cred;
+    state.dollars = 0;
+    state.run = emptyRun(now);
+    state.settings.map = null;
+    return cred;
   }
 
   /** Book a finished shift. Returns which records it broke. */
@@ -931,7 +977,10 @@
     if (q.cost > state.dollars) return { ok: false, reason: 'funds', cost: q.cost };
     state.dollars -= q.cost;
     state.run.spent += q.cost;
-    if (it.kind === 'charter') state.run.charters[id] = true;
+    if (it.kind === 'charter') {
+      state.run.charters[id] = true;
+      if (id === NIXON.charter) state.run.peak = Math.max(state.run.peak, state.run.reserves);
+    }
     else if (it.kind === 'level') state.run.items[id] = level(state, id) + q.n;
     else state.run.items[id] = 1;
     return { ok: true, item: it, n: q.n, cost: q.cost };
@@ -962,7 +1011,7 @@
     setNotation, fmt, fmtUSD, fmtTime, fmtClock, roundPrice,
     createState, migrate, yearOf, dateLabel, level, owns, missing, status, quote, levelCost,
     buildingCost, maxAffordable, purchaseQuote, hasPermit, effectLine, charterEffects, nextCharter,
-    PICK_HEADS, pickHead, derive, siteShare, pct, deposit, simulate, recordShift, buy, buyBuilding, termsIn,
+    PICK_HEADS, pickHead, sever, derive, siteShare, pct, deposit, simulate, recordShift, buy, buyBuilding, termsIn,
   };
 
   root.Economy = Economy;

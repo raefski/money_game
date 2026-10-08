@@ -20,7 +20,7 @@
     vein: { r: 38, hp: 14, gold: 1.6, weight: 5 },   // after the Hydraulic Mining charter
     lode: { r: 64, hp: 90, gold: 40 },               // the Mother Lode: at most one per shift
   };
-  const BLAST_DAMAGE = 0.6;   // dynamite hits for this share of pick damage
+  const BLAST_DAMAGE = 0.5;   // dynamite hits for this share of pick damage
   const MAX_BLASTS = 30;      // chain reactions stop here, per strike
   const TOUCH_LIFT = 88;      // CSS px: default height of the pick above the fingertip on touch
 

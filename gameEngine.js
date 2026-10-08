@@ -255,7 +255,8 @@
     const e = c.effects || {};
     if (e.price || e.cover) View.flashKPI('kpi-rate-wrap');
     if (e.map) { G.state.settings.map = null; Mine.mapsChanged(); } // move to the new field
-    if (c.id === E.NIXON.charter) toast({ kicker: 'THE GOLD WINDOW', title: 'Closing the window is possible', text: 'See the Treasury page.', icon: A.uiIcon('vault') });
+    if (e.drain && c.id === 'c1944') toast({ kicker: 'THE GOLD DRAIN BEGINS', title: 'Foreign banks want gold', text: 'Under Bretton Woods, dollars abroad can be traded for your gold. The vault now drains a little every second. Watch it on the Treasury page.', icon: A.uiIcon('vault'), timeout: 9000 });
+    if (c.id === E.NIXON.charter) toast({ kicker: 'THE GOLD WINDOW', title: 'You can close the window', text: 'Every minute you defend the peg raises your Credibility, but the drain is faster now. Close it from the Treasury page before the vault runs dry.', icon: A.uiIcon('vault'), timeout: 9000 });
   }
 
   function buyCrew(id, el) {
@@ -1101,13 +1102,13 @@
         const b = e.target.closest('[data-buy]');
         if (b) buyItem(b.dataset.buy, b);
       });
-      $('btn-nixon').addEventListener('click', showNixonPreview);
+      $('btn-nixon').addEventListener('click', () => confirmSever());
       this.renderFiatPreview();
     },
     render() {
       const s = G.state, d = G.d;
       setText($('mint-rate'), fmtUSD(d.dollarsPerOz));
-      setHTML($('mint-formula'), `${rich(`$${d.price.toFixed(2)} [[mint-price|official price]] ÷ ${Math.round(d.cover * 100)}% [[gold-cover|gold cover]]`)}`);
+      setHTML($('mint-formula'), `${rich(`$${d.price.toFixed(2)} [[mint-price|official price]] ÷ ${Math.round(d.cover * 100)}% [[gold-cover|gold cover]]${d.credMult > 1 ? ` × ${d.credMult.toFixed(1)} [[credibility|Credibility]]` : ''}`)}`);
       const rows = [
         ['Vault reserves', oz(s.run.reserves)],
         ['Dollars issued this era', fmtUSD(s.run.minted)],
@@ -1116,6 +1117,8 @@
         ['Your pace', `${rate(d.pace)} oz/s`],
         ['Official gold price', `$${d.price.toFixed(2)}/oz`],
       ];
+      if (d.drain > 0) rows.splice(1, 0, ['Foreign gold drain', `−${rate(d.drainRate)} oz/s (${(d.drain * 6000).toFixed(1)}% a minute)`]);
+      if (s.prestige.credibility) rows.push(['Central Bank Credibility', `${s.prestige.credibility} · Mint +${Math.round((d.credMult - 1) * 100)}%`]);
       setHTML($('mint-stats'), rows.map(([k, v]) => `<div class="stat-line"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join(''));
       this.renderTimeline();
       this.renderNixon();
@@ -1151,19 +1154,26 @@
       setText($('history-count'), `${Math.min(ni, E.CHARTERS.length)} / ${E.CHARTERS.length}`);
     },
     renderNixon() {
-      const s = G.state;
+      const s = G.state, d = G.d, r = s.run;
       const N = E.NIXON;
-      const signed = !!s.run.charters[N.charter];
-      const res = s.run.reserves;
-      const ready = signed && res >= N.reserves;
+      const ready = !!r.charters[N.charter];
       const c = E.CHARTER_BY_ID[N.charter];
-      setText($('peg-price'), `$${G.d.price.toFixed(2)} / oz`);
-      setText($('nixon-req'), signed ? `${fmt(N.reserves)} oz in the vault` : `${c.title} (${Math.floor(c.year)})`);
-      setWidth($('nixon-fill'), Math.log10(res + 1) / Math.log10(N.reserves + 1));
-      setText($('nixon-pct'), `${fmt(res, 1)} / ${fmt(N.reserves)} oz`);
-      setText($('nixon-eta'), ready ? 'READY' : signed ? 'of the vault target' : 'charter not yet signed');
-      const cred = N.credibility(res);
-      setText($('nixon-cred'), cred ? `+${cred} CBC` : '+0');
+      const kv = (k, v, cls = '') => `<div class="kv${cls}"><span>${k}</span><span>${esc(v)}</span></div>`;
+      let html = kv('<span class="term" data-tip="term:gold-standard" tabindex="0">Dollar peg</span>', `$${d.price.toFixed(2)} / oz`);
+      html += kv('Foreign gold drain', d.drain > 0 ? `−${rate(d.drainRate)} oz/s` : 'starts with Bretton Woods (1944)');
+      if (!ready) {
+        html += kv('To open the window', `${c.title} (${Math.floor(c.year)})`);
+      } else {
+        const floor = r.peak * N.crisisShare;
+        const health = r.peak > floor ? (r.reserves - floor) / (r.peak - floor) : 1;
+        html += kv('Defending the peg', `${fmtTime(r.defended)} · ×${N.defendMult(r).toFixed(2)}`);
+        html += `<span class="meter${health < 0.3 ? ' danger' : ''}"><span style="width:${(clamp(health, 0, 1) * 100).toFixed(1)}%"></span></span>`;
+        html += kv(`Vault ${fmt(r.reserves)} oz`, `run below ${fmt(floor)} oz`, ' small');
+        const cred = N.credibility(s);
+        html += kv('<span class="term" data-tip="term:credibility" tabindex="0">Credibility if you close now</span>', `+${cred} · Mint +${Math.round(N.bonusPerPoint * (s.prestige.credibility + cred) * 100)}%`);
+      }
+      if (s.prestige.credibility) html += kv('Credibility banked', `${s.prestige.credibility} (${s.prestige.resets} ${s.prestige.resets === 1 ? 'era' : 'eras'})`, ' small');
+      setHTML($('window-rows'), html);
       const vkey = String(ready);
       if (vkey !== this.vaultKey) {
         this.vaultKey = vkey;
@@ -1172,7 +1182,7 @@
         const btn = $('btn-nixon');
         btn.disabled = !ready;
         btn.classList.toggle('ready', ready);
-        btn.innerHTML = `${A.uiIcon(ready ? 'unlock' : 'lock')}Sever the gold peg`;
+        btn.innerHTML = `${A.uiIcon(ready ? 'unlock' : 'lock')}Close the gold window`;
       }
     },
     renderFiatPreview() {
@@ -1751,7 +1761,7 @@
       setText(bt, String(idle));
       const next = E.nextCharter(s);
       const bt2 = $('badge-treasury');
-      const sign = next && E.status(s, E.ITEM_BY_ID[next.id]) === 'available' && s.dollars >= next.cost;
+      const sign = (next && E.status(s, E.ITEM_BY_ID[next.id]) === 'available' && s.dollars >= next.cost) || !!s.run.charters[E.NIXON.charter];
       bt2.hidden = !sign;
       setText(bt2, '!');
 
@@ -1981,6 +1991,7 @@
       ['Your pace', `${rate(d.pace)} oz/s`],
       ['Crews hired', fmt(crews)],
       ['Charters signed', `${Object.keys(s.run.charters).length - 1} / ${E.CHARTERS.length - 1}`],
+      ['Central Bank Credibility', `${s.prestige.credibility} · gold windows closed: ${s.prestige.resets}`],
       ['Codex terms studied', `${studied} / ${Object.keys(E.GLOSSARY).length}`],
       ['Time played', fmtTime(s.stats.playTime)],
       ['Era started', new Date(s.run.startedAt).toLocaleString()],
@@ -2018,15 +2029,58 @@
     });
   }
 
-  function showNixonPreview() {
-    const cred = E.NIXON.credibility(G.state.run.reserves);
+  function confirmSever() {
+    const s = G.state, N = E.NIXON;
+    if (!s.run.charters[N.charter]) return;
+    const cred = N.credibility(s);
+    const after = Math.round(N.bonusPerPoint * (s.prestige.credibility + cred) * 100);
     Modal.open({
-      kicker: 'PHASE II · CLASSIFIED',
-      title: 'The Nixon Shock is being drafted',
-      body: `<p>Your vault holds enough gold to close the window. In the next build, severing the peg resets your gold empire and awards <b>${cred} Central Bank Credibility</b> to spend in the Fiat Era: interest rates, fractional reserve banking and the petrodollar.</p>
-        <p class="muted">Your progress is saved. Keep mining to raise the Credibility you will carry forward. It grows with the cube root of your vault reserves.</p>`,
-      actions: [{ label: 'Keep mining', primary: true }],
+      kicker: 'AUGUST 15, 1971 · CAMP DAVID',
+      title: 'Close the gold window?',
+      body: `<div class="big-figure">+${cred} <small>Credibility</small></div>
+        <p>Foreigners can no longer trade dollars for your gold. You bank <b>${cred} Central Bank Credibility</b>, and from now on the Mint pays <b>+${after}%</b>, in this era and every one after.</p>
+        <p>The gold era starts over at Sutter's Mill: dollars, upgrades, sites and charters reset. Your Credibility, statistics, codex and settings stay.</p>
+        <p class="muted">Holding out longer raises the defense multiplier (×${N.defendMult(s.run).toFixed(2)} now, up to ×2) but the drain keeps shrinking the vault, and below a quarter of its peak a run closes the window for you at half the payout.</p>`,
+      actions: [{ label: 'Keep defending' }, { label: 'Close the window', primary: true, onClick: () => { setTimeout(() => doSever(false), 50); } }],
     });
+  }
+
+  function doSever(forced) {
+    const year = Math.floor(G.d.year);
+    Mine.view.abort();
+    const cred = E.sever(G.state, forced);
+    Mine.phase = 'ready';
+    Mine.report = null;
+    G.lastSim = Date.now();
+    refresh();
+    addLog(forced ? 'Run on the gold window' : 'The Nixon Shock', `The dollar floats. +${cred} Credibility; the Mint now pays ×${G.d.credMult.toFixed(1)}.`, 'milestone', 1971);
+    View.resetAll();
+    Ticker.init();
+    Spark.reset();
+    Pages.show('mine');
+    document.body.classList.add('shock');
+    setTimeout(() => document.body.classList.remove('shock'), 2600);
+    Sound.chime();
+    Modal.open({
+      kicker: forced ? `RUN ON THE GOLD WINDOW · ${year}` : 'AUGUST 15, 1971',
+      title: forced ? 'The window slammed shut' : 'The Nixon Shock',
+      body: `${forced ? '<p>Foreign central banks drained the vault below a quarter of its peak, and the window had to close in a panic. Credibility suffers: half the payout.</p>' : ''}
+        <p class="note">"I have directed Secretary Connally to suspend temporarily the convertibility of the American dollar into gold." — President Nixon, August 15, 1971</p>
+        <div class="big-figure">+${cred} <small>Credibility</small></div>
+        <p>You hold <b>${G.state.prestige.credibility} Central Bank Credibility</b>: the Mint now pays <b>×${G.d.credMult.toFixed(1)}</b>. A new gold rush begins at Sutter's Mill, and this time history moves faster.</p>
+        <p class="muted">The Fiat Era itself, with printing money, interest rates and bank lending, is the next chapter in development. Your Credibility will carry into it.</p>`,
+      actions: [{ label: 'Back to 1848', primary: true }],
+    });
+    save();
+  }
+
+  /** A run on the window: the vault fell below a quarter of its peak. */
+  function checkCrisis() {
+    if (G.crisis || !E.NIXON.inCrisis(G.state)) return;
+    G.crisis = true;
+    Modal.close();
+    doSever(true);
+    G.crisis = false;
   }
 
   /* ------------------------------------------------------------------------
@@ -2076,7 +2130,7 @@
         ['+$1K', () => this.cash(1e3)], ['+$1M', () => this.cash(1e6)], ['+$1B', () => this.cash(1e9)], ['+$1T', () => this.cash(1e12)],
         ['+1K oz', () => this.gold(1e3)], ['+1M oz', () => this.gold(1e6)], ['sign next', () => this.sign()], ['permits', () => this.permits()],
         ['+10 crews', () => this.crews(10)], ['end shift', () => this.endShift()], ['lode', () => this.lode()],
-        ['warp 1h', () => this.warp(3600)], ['fiat theme', () => this.era()],
+        ['warp 1h', () => this.warp(3600)], ['to 1968', () => { for (let i = 0; i < 22; i++) this.sign(); G.state.run.reserves = Math.max(G.state.run.reserves, 2e8); G.state.run.peak = G.state.run.reserves; }], ['vault −50%', () => { G.state.run.reserves *= 0.5; }], ['fiat theme', () => this.era()],
       ];
       el.innerHTML = '<button type="button" class="debug-head" aria-expanded="true"><span>DEBUG</span><span class="debug-caret" aria-hidden="true">▾</span></button><div class="debug-body"></div>';
       const head = el.querySelector('.debug-head');
@@ -2103,6 +2157,7 @@
     G.lastFrame = ts;
     catchUp();
     refresh();
+    checkCrisis();
     Mine.frame(dt);
     View.frame();
     Ticker.update(dt);

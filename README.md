@@ -21,7 +21,13 @@ An incremental game about the history of the U.S. dollar, from gold dust at Sutt
 4. **Hire crews (Territory page).** A site works only after you buy its permit. Its crews then mine a share of your mining pace between shifts, and while the game is closed.
    - Each site's crews approach that site's limit with diminishing returns.
    - Tiers raise the limit and evolve the artwork.
-5. **Treasury page.** It shows the Mint's formula, the history timeline, the gold window (the Nixon Shock gate) and the locked Fiat Era preview.
+5. **Treasury page.** It shows the Mint's formula, the history timeline, the gold window and the locked Fiat Era preview.
+6. **The gold drain and the Nixon Shock.** From Bretton Woods (1944), foreign central banks trade dollars for your gold, and the vault drains a share of itself every second. The drain speeds up in 1945 and 1968.
+   - **Opening the window:** once the 1968 charter is signed, you can close the gold window from the Treasury page.
+   - **Credibility:** it grows with the gold left in the vault and with how long you defended the peg (up to ×2 after 20 minutes).
+   - **Crisis:** if the vault falls below a quarter of its peak, a run closes the window for you at half the payout.
+   - **Closing the window:** this banks Central Bank Credibility. Each point makes the Mint pay 10% more, permanently. Then the gold era restarts at 1848.
+   - **Fiat Era:** the Fiat Era proper is the next phase.
 
 ## Run it
 
@@ -81,8 +87,8 @@ Claude artifacts need one self-contained file. `python3 tools/build-artifact.py 
 
 `node tools/balance.js` simulates an efficient player who holds down and aims at the best cluster with some error. Current numbers:
 
-- **Timeline:** the 1849 charter at about minute 3, Comstock (1859) at 15, Homestake (1876) at 60, the Federal Reserve Act (1913) at 132, and the Gold Pool's collapse (1968) at about 224 minutes. A casual player will take longer.
-- **Crews:** they bring in about 5% of income at 15 minutes, 20–30% in the first hour, and 35–45% late. Clicking stays the main source of income.
+- **Timeline:** the 1849 charter at about minute 3, Comstock (1859) at 16, Homestake (1876) at 59, the Federal Reserve Act (1913) at 154, and the Gold Pool's collapse (1968) at about 332 minutes. A real player aims better and uses dynamite well: one reached 1945 in about 2 hours on the previous, easier balance, roughly 1.7× the bot's speed, so expect about 3 hours.
+- **Crews:** they bring in about 13% of income at 15 minutes, 20–25% in the first hour, and 30–40% late. Clicking stays the main source of income.
 
 The tuning levers, all in `economy.js`:
 
@@ -98,5 +104,5 @@ The tuning levers, all in `economy.js`:
 ## Hooks for Phase II and III
 
 - **Era state:** `state.era` (`'gold' | 'fiat'`) and `body[data-era]` already drive the whole palette, including the neon strokes inside the SVG art (`.nst` and `.nfl`).
-- **Prestige:** `Economy.NIXON` holds the gate (the 1968 charter plus a vault target) and the Credibility formula (`10 × ∛(reserves / target)`). `state.prestige` is reserved for it.
+- **Prestige:** `Economy.NIXON` holds the drain-era rules: `credibility()`, `defendMult()`, `inCrisis()` and `bonusPerPoint`. `Economy.sever()` performs the reset, and `state.prestige` keeps the Credibility and the reset count.
 - **Fiat Era preview:** the locked tree reads from `Economy.FIAT_PREVIEW`, and the matching glossary terms are already written.

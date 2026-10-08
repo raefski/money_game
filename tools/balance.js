@@ -10,7 +10,7 @@ const M = require(path.join(__dirname, '..', 'mining.js'));
 
 const HOURS = Number(process.argv[2]) || 5;
 const BETWEEN_SHIFTS = 5;   // seconds spent on the report screen
-const AIM_NOISE = 0.3;      // aim error, as a share of the pick's reach
+const AIM_NOISE = Number(process.env.AIM_NOISE || 0.3); // aim error, as a share of the pick's reach
 
 const cache = new Map();
 function shiftGold(mine) {

@@ -890,6 +890,10 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
 .kv.small { font-size: 11px; }
 .kv.small > :last-child { color: var(--text-3); font-weight: 500; }
 .window-body .meter { margin: 5px 0 2px; height: 8px; }
+.meter.danger > span { background: linear-gradient(90deg, #ff5c5c, #ff8a1f); box-shadow: 0 0 10px rgba(255, 92, 92, .5); }
+#window-rows .meter { margin: 5px 0 2px; height: 8px; }
+body.shock { animation: shock 2.6s ease-out; }
+@keyframes shock { 0% { filter: hue-rotate(110deg) saturate(1.6) brightness(1.4); } 40% { filter: hue-rotate(110deg) saturate(1.3); } 100% { filter: none; } }
 .btn-nixon { width: 100%; margin-top: 12px; text-transform: uppercase; letter-spacing: 0.14em; }
 .btn-nixon.ready { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); animation: ready-pulse 2s infinite; }
 @keyframes ready-pulse { 50% { box-shadow: 0 0 26px -4px var(--accent-glow); } }
