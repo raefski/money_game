@@ -685,7 +685,7 @@
         ['Swings', `${(1 / m.swing).toFixed(1)}/s`, 'Hold down to keep swinging at this pace.'],
       ];
       if (m.critChance > 0) rows.push(['Crits', `${Math.round(m.critChance * 100)}% · ×${m.critMult.toFixed(1)}`, 'Chance of a critical swing, and how much harder it hits.']);
-      rows.push(['Shift', `${m.duration.toFixed(1)}s`, 'Length of each shift. A shift digs deeper as it runs: gold seams after 14 s, gold pockets after 28 s, bonanza crystals after 42 s. Lantern Oil makes shifts longer.']);
+      rows.push(['Shift', `${m.duration.toFixed(1)}s`, 'Length of each shift. A shift digs deeper as it runs: gold seams after 14 s, pockets after 28 s, bonanza crystals after 42 s, geodes after 56 s, the heart of the mountain after 72 s, El Dorado after 88 s. Lantern Oil makes shifts longer.']);
       rows.push(['Rock face', `${m.cap} rocks`, 'Rocks in the face at once. Broken rock is replaced.']);
       rows.push(['Gold per rock', `×${fmt(m.goldMult, 2)}`, `Assaying, history and this mine (${d.map.name}: ×${d.map.gold} gold, ×${d.map.hp} rock).`]);
       rows.push(['Mother Lode', `${Math.round(m.lodeChance * 100)}% a shift`, 'Chance that a huge glowing lode appears during a shift.']);

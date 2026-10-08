@@ -26,11 +26,15 @@
     seam: { r: 30, hp: 10, gold: 1.2, depth: 14, max: 3 },
     pocket: { r: 35, hp: 28, gold: 4, depth: 28, max: 2 },
     bonanza: { r: 40, hp: 60, gold: 12, depth: 42, max: 2 },
+    geode: { r: 44, hp: 110, gold: 32, depth: 56, max: 2 },      // gold-lined geodes
+    heart: { r: 50, hp: 200, gold: 90, depth: 72, max: 1 },      // the heart of the mountain
+    eldorado: { r: 54, hp: 340, gold: 240, depth: 88, max: 1 },  // El Dorado: white-gold crystal
   };
   const DEPTHS = [
     { t: 14, name: 'Gold seams' }, { t: 28, name: 'Gold pockets' }, { t: 42, name: 'Bonanza crystals' },
+    { t: 56, name: 'Gold geodes' }, { t: 72, name: 'Heart of the mountain' }, { t: 88, name: 'El Dorado' },
   ];
-  const DEEP = ['seam', 'pocket', 'bonanza'];
+  const DEEP = ['seam', 'pocket', 'bonanza', 'geode', 'heart', 'eldorado'];
   const BLAST_DAMAGE = 0.5;   // dynamite hits for this share of pick damage
   const MAX_BLASTS = 30;      // chain reactions stop here, per strike
   const TOUCH_LIFT = 88;      // CSS px: default height of the pick above the fingertip on touch
@@ -101,7 +105,7 @@
       s.depth++;
     }
     let rocks = 0;
-    const deep = { seam: 0, pocket: 0, bonanza: 0 };
+    const deep = { seam: 0, pocket: 0, bonanza: 0, geode: 0, heart: 0, eldorado: 0 };
     for (const o of s.ores) { if (o.type in deep) deep[o.type]++; else if (o.type !== 'lode') rocks++; }
     // deep layers: keep a few of each reached layer on the face, refilled slowly
     for (const k of DEEP) {
@@ -384,10 +388,10 @@
       ctx.beginPath();
       ctx.ellipse(r * 0.12, r * 0.82, r * 0.9, r * 0.24, 0, 0, Math.PI * 2);
       ctx.fill();
-      if (o.type === 'bonanza' || o.type === 'pocket') {
-        const pulse = (o.type === 'bonanza' ? 0.45 : 0.22) + 0.15 * Math.sin(now * 4 + o.seed);
+      if (o.type === 'bonanza' || o.type === 'pocket' || o.type === 'geode' || o.type === 'heart' || o.type === 'eldorado') {
+        const pulse = ({ pocket: 0.22, bonanza: 0.45, geode: 0.4, heart: 0.6, eldorado: 0.7 })[o.type] + 0.15 * Math.sin(now * 4 + o.seed);
         const glow = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 1.5);
-        glow.addColorStop(0, `rgba(255, 215, 110, ${pulse})`);
+        glow.addColorStop(0, o.type === 'eldorado' ? `rgba(220, 245, 255, ${pulse})` : o.type === 'heart' ? `rgba(255, 150, 70, ${pulse})` : `rgba(255, 215, 110, ${pulse})`);
         glow.addColorStop(1, 'rgba(255, 180, 0, 0)');
         ctx.fillStyle = glow;
         ctx.beginPath();
@@ -404,7 +408,38 @@
         ctx.arc(0, 0, r * 1.7, 0, Math.PI * 2);
         ctx.fill();
       }
-      if (o.type === 'bonanza') {
+      if (o.type === 'geode') {
+        // a dull shell split open on a ring of violet crystal and a gold core
+        ctx.fillStyle = pal.rockDk;
+        polygon(sh.pts, r);
+        ctx.fill();
+        const g = ctx.createRadialGradient(0, 0, r * 0.1, 0, 0, r * 0.72);
+        g.addColorStop(0, '#fff3b0');
+        g.addColorStop(0.35, GOLD);
+        g.addColorStop(0.6, '#8d5bd6');
+        g.addColorStop(1, '#3a2360');
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.72, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = 'rgba(230, 210, 255, 0.6)';
+        ctx.lineWidth = r * 0.04;
+        for (let i = 0; i < 10; i++) { const a = i * 0.63 + sh.tilt; ctx.beginPath(); ctx.moveTo(Math.cos(a) * r * 0.35, Math.sin(a) * r * 0.35); ctx.lineTo(Math.cos(a) * r * 0.7, Math.sin(a) * r * 0.7); ctx.stroke(); }
+      } else if (o.type === 'heart' || o.type === 'eldorado') {
+        // a big pulsing core: red-gold heart, or white-gold El Dorado crystal
+        const el = o.type === 'eldorado';
+        const beat = 1 + 0.04 * Math.sin(now * (el ? 3 : 6));
+        const g = ctx.createRadialGradient(-r * 0.2, -r * 0.25, r * 0.05, 0, 0, r);
+        g.addColorStop(0, '#ffffff');
+        g.addColorStop(0.3, el ? '#fffbe8' : '#ffd36b');
+        g.addColorStop(0.7, el ? '#ffe9a0' : '#e8892a');
+        g.addColorStop(1, el ? '#b98a2a' : '#7a2e12');
+        ctx.fillStyle = g;
+        polygon(sh.pts, r * beat);
+        ctx.fill();
+        ctx.strokeStyle = el ? 'rgba(180, 240, 255, 0.8)' : 'rgba(120, 30, 10, 0.6)';
+        ctx.lineWidth = r * 0.05;
+        for (let i = 0; i < sh.pts.length; i += 2) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(sh.pts[i][0] * r * beat, sh.pts[i][1] * r * beat); ctx.stroke(); }
+        if (el) { ctx.fillStyle = 'rgba(255,255,255,0.9)'; for (let i = 0; i < 4; i++) { const a = now * 1.5 + i * 1.57; ctx.beginPath(); ctx.arc(Math.cos(a) * r * 0.5, Math.sin(a) * r * 0.5, r * 0.06, 0, Math.PI * 2); ctx.fill(); } }
+      } else if (o.type === 'bonanza') {
         // a gold crystal: bright faces, dark seams between them
         const g = ctx.createLinearGradient(-r, -r, r, r);
         g.addColorStop(0, '#fff6d0');
@@ -578,7 +613,7 @@
     }
 
     /* ---- events from the model ---- */
-    const COLORS = { rock: '#8e7b65', quartz: '#e8e2d6', nugget: GOLD, vein: '#4a3e31', lode: GOLD, seam: '#e8e2d6', pocket: '#3b3129', bonanza: GOLD };
+    const COLORS = { rock: '#8e7b65', quartz: '#e8e2d6', nugget: GOLD, vein: '#4a3e31', lode: GOLD, seam: '#e8e2d6', pocket: '#3b3129', bonanza: GOLD, geode: '#8d5bd6', heart: '#ff8a3a', eldorado: '#fffbe8' };
 
     function consume() {
       const s = view.shift;
