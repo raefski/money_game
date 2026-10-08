@@ -32,11 +32,12 @@ function bestMap(st) {
   st.settings.map = best;
 }
 
+function run(hours) {
 const s = E.createState(0);
 const times = {};
 const passive = [];
 let t = 0, n = 0;
-while (t < HOURS * 3600 && !s.run.charters.c1968) {
+while (t < hours * 3600 && !s.run.charters.c1968) {
   bestMap(s);
   const d = E.derive(s);
   const res = M.simulate(d.mine, { seed: ++n, aspect: 0.62, noise: AIM_NOISE });
@@ -64,6 +65,13 @@ while (t < HOURS * 3600 && !s.run.charters.c1968) {
       const q = E.quote(s, it, 1);
       if (it.kind === 'permit') {
         consider(it.id, q.cost + E.BUILDING_BY_ID[it.site].unitCost, (c) => { c.dollars = 1e300; E.buy(c, it.id, 1); c.run.buildings[it.site]++; }, false);
+      } else if (it.kind === 'level') {
+        // look a few levels ahead: one level of damage often changes nothing until the next hit threshold
+        for (const n of [1, 3, 8]) {
+          const qn = E.quote(s, it, n);
+          if (qn.n < n && n > 1) break;
+          consider(`${it.id}:${n}`, qn.cost, (c) => { c.dollars = 1e300; E.buy(c, it.id, n); }, false);
+        }
       } else {
         consider(it.id, q.cost, (c) => { c.dollars = 1e300; E.buy(c, it.id, 1); }, it.kind === 'charter');
       }
@@ -74,13 +82,19 @@ while (t < HOURS * 3600 && !s.run.charters.c1968) {
     if (!best || best.cost > s.dollars) break;
     if (best.id.startsWith('site:')) E.buyBuilding(s, best.id.slice(5), 1);
     else {
-      const r = E.buy(s, best.id, 1);
-      if (r.ok && r.item.kind === 'charter') times[best.id] = t;
+      const [bid, bn] = best.id.split(':');
+      const r = E.buy(s, bid, Number(bn) || 1);
+      if (r.ok && r.item.kind === 'charter') times[bid] = t;
       if (r.ok && r.item.kind === 'permit') E.buyBuilding(s, r.item.site, 1);
     }
   }
 }
 
+return { s, t, times, passive };
+}
+module.exports = { run, E };
+if (require.main !== module) return;
+const { s, t, times, passive } = run(HOURS);
 const min = (x) => (x / 60).toFixed(0);
 console.log(`Simulated ${min(t)} min, ${s.run.shifts} shifts.`);
 console.log('Charter signed at minute:');

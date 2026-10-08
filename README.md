@@ -86,10 +86,10 @@ Claude artifacts need one self-contained file. `python3 tools/build-artifact.py 
 
 ## Balance
 
-`node tools/balance.js` simulates an efficient player who holds down and aims at the best cluster with some error. Current numbers:
+`node tools/balance.js` simulates an efficient player: it holds down, aims at the best cluster with some error, and buys whatever pays back fastest, looking a few levels ahead. `node tools/calibrate.js [scale]` fits the charter prices to a target timeline with that bot and writes them into `economy.js`.
 
-- **Timeline:** the 1849 charter at about minute 3, Comstock (1859) at 16, Homestake (1876) at 59, the Federal Reserve Act (1913) at 154, and the Gold Pool's collapse (1968) at about 332 minutes. A real player aims better and uses dynamite well: one reached 1945 in about 2 hours on the previous, easier balance, roughly 1.7× the bot's speed, so expect about 3 hours.
-- **Crews:** they bring in about 13% of income at 15 minutes, 20–25% in the first hour, and 30–40% late. Clicking stays the main source of income.
+- **Timeline:** the bot signs the 1849 charter at about minute 2, Comstock (1859) at 12, Homestake (1876) at 43, the Federal Reserve Act (1913) at 94, and the Gold Pool's collapse (1968) at about 185 minutes. A person should take 3+ hours.
+- **Crews:** they bring in about 8% of income at 15 minutes, 25–35% mid-game and about 40% late. Clicking stays the main source of income.
 
 The tuning levers, all in `economy.js`:
 
