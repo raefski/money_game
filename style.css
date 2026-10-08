@@ -878,13 +878,15 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
 
 /* ---------- The Gold Window (Nixon Shock gate) ---------- */
 .window-body { display: grid; grid-template-columns: 92px 1fr; gap: 12px; align-items: center; }
+.window-body > div { min-width: 0; }
 .vault-door { width: 92px; height: 92px; color: var(--accent); display: block; }
 .vault-wheel { transform-box: fill-box; transform-origin: center; transition: transform 1.2s var(--ease); }
 .vault-door.ready .vault-wheel { animation: vault-spin 8s linear infinite; }
 @keyframes vault-spin { to { transform: rotate(360deg); } }
 .vault-led { animation: live-dot 1.8s infinite; }
 .kv { display: flex; justify-content: space-between; gap: 8px; font-size: 12px; color: var(--text-2); padding: 2px 0; }
-.kv > :last-child { font-family: var(--font-mono); color: var(--text); font-weight: 600; text-align: right; white-space: nowrap; }
+.kv > :last-child { font-family: var(--font-mono); color: var(--text); font-weight: 600; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.kv > :first-child { flex: none; }
 .kv.small { font-size: 11px; }
 .kv.small > :last-child { color: var(--text-3); font-weight: 500; }
 .window-body .meter { margin: 5px 0 2px; height: 8px; }
@@ -1361,6 +1363,10 @@ button, [data-tip] { -webkit-tap-highlight-color: transparent; }
   .tl-item { grid-template-columns: 42px minmax(0, 1fr) auto; }
   .tl-item.next { grid-template-columns: 42px minmax(0, 1fr); }
   .mint-value { font-size: 34px; }
+  .window-body { grid-template-columns: 64px minmax(0, 1fr); gap: 10px; }
+  .vault-door { width: 64px; height: 64px; }
+  .kv { flex-wrap: wrap; column-gap: 8px; }
+  .kv.small > :last-child { text-align: left; }
 }
 
 /* ---------- Reduced motion ---------- */
