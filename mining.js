@@ -19,7 +19,18 @@
     nugget: { r: 17, hp: 2, gold: 1.0, weight: 6 },
     vein: { r: 38, hp: 14, gold: 1.6, weight: 5 },   // after the Hydraulic Mining charter
     lode: { r: 64, hp: 90, gold: 40 },               // the Mother Lode: at most one per shift
+    // Deep ore: a shift digs deeper as it runs, so rock that respawns late comes
+    // from richer, harder ground. Longer shifts (Lantern Oil) reach deeper layers.
+    // They come on top of the normal rock, a few at a time, so rock your pick
+    // cannot break yet never crowds out the rest.
+    seam: { r: 30, hp: 10, gold: 1.2, depth: 14, max: 3 },
+    pocket: { r: 35, hp: 28, gold: 4, depth: 28, max: 2 },
+    bonanza: { r: 40, hp: 60, gold: 12, depth: 42, max: 2 },
   };
+  const DEPTHS = [
+    { t: 14, name: 'Gold seams' }, { t: 28, name: 'Gold pockets' }, { t: 42, name: 'Bonanza crystals' },
+  ];
+  const DEEP = ['seam', 'pocket', 'bonanza'];
   const BLAST_DAMAGE = 0.5;   // dynamite hits for this share of pick damage
   const MAX_BLASTS = 30;      // chain reactions stop here, per strike
   const TOUCH_LIFT = 88;      // CSS px: default height of the pick above the fingertip on touch
@@ -43,7 +54,7 @@
     const s = {
       stats, w: f.w, h: f.h, t: 0, over: false, ores: [], nextId: 1, spawnAcc: 0,
       rand: rng(opts.seed || 1), gold: 0, ore: 0, crits: 0, best: 0, lodes: 0, lodeGold: 0, strikes: 0,
-      events: [], lodeAt: null,
+      events: [], lodeAt: null, depth: 0, deepAcc: {}, deepSeen: {},
     };
     if (s.rand() < stats.lodeChance) s.lodeAt = stats.duration * (0.2 + s.rand() * 0.45);
     for (let i = 0; i < stats.cap; i++) spawn(s);
@@ -85,8 +96,20 @@
     if (s.over) return;
     s.t += dt;
     const st = s.stats;
+    while (s.depth < DEPTHS.length && s.t >= DEPTHS[s.depth].t && s.t < st.duration) {
+      s.events.push({ type: 'depth', level: s.depth + 1, name: DEPTHS[s.depth].name });
+      s.depth++;
+    }
     let rocks = 0;
-    for (const o of s.ores) if (o.type !== 'lode') rocks++;
+    const deep = { seam: 0, pocket: 0, bonanza: 0 };
+    for (const o of s.ores) { if (o.type in deep) deep[o.type]++; else if (o.type !== 'lode') rocks++; }
+    // deep layers: keep a few of each reached layer on the face, refilled slowly
+    for (const k of DEEP) {
+      const o = ORES[k];
+      if (s.t < o.depth || deep[k] >= o.max) continue;
+      s.deepAcc[k] = (s.deepAcc[k] || 0) + dt;
+      if (s.deepAcc[k] >= st.respawn * 6 || deep[k] === 0 && !s.deepSeen[k]) { s.deepAcc[k] = 0; s.deepSeen[k] = true; spawn(s, k); }
+    }
     if (rocks < st.cap) {
       s.spawnAcc += dt;
       while (s.spawnAcc >= st.respawn && rocks < st.cap) { spawn(s); rocks++; s.spawnAcc -= st.respawn; }
@@ -216,14 +239,15 @@
       pts.push([Math.cos(a) * k, Math.sin(a) * k]);
     }
     const flecks = [];
-    const fleckCount = o.type === 'quartz' ? 6 : o.type === 'rock' ? 2 : 0;
-    for (let i = 0; i < fleckCount; i++) flecks.push([(rand() - 0.5) * 1.1, (rand() - 0.5) * 1.1, 0.05 + rand() * 0.07]);
+    const fleckCount = o.type === 'quartz' ? 6 : o.type === 'rock' ? 2 : o.type === 'pocket' ? 5 : 0;
+    const big = o.type === 'pocket' ? 0.1 : 0;
+    for (let i = 0; i < fleckCount; i++) flecks.push([(rand() - 0.5) * 1.1, (rand() - 0.5) * 1.1, 0.05 + big + rand() * 0.07]);
     const veins = [];
-    const veinCount = o.type === 'vein' ? 3 : o.type === 'lode' ? 6 : 0;
+    const veinCount = o.type === 'vein' ? 3 : o.type === 'lode' ? 6 : o.type === 'seam' ? 2 : 0;
     for (let i = 0; i < veinCount; i++) {
       const a = rand() * Math.PI;
       const dx = Math.cos(a), dy = Math.sin(a);
-      veins.push([-dx * 0.75, -dy * 0.75, (rand() - 0.5) * 0.6, (rand() - 0.5) * 0.6, dx * 0.75, dy * 0.75, 0.08 + rand() * 0.07]);
+      veins.push([-dx * 0.75, -dy * 0.75, (rand() - 0.5) * 0.6, (rand() - 0.5) * 0.6, dx * 0.75, dy * 0.75, (o.type === 'seam' ? 0.16 : 0.08) + rand() * 0.07]);
     }
     const cracks = [];
     for (let i = 0; i < 4; i++) {
@@ -360,6 +384,16 @@
       ctx.beginPath();
       ctx.ellipse(r * 0.12, r * 0.82, r * 0.9, r * 0.24, 0, 0, Math.PI * 2);
       ctx.fill();
+      if (o.type === 'bonanza' || o.type === 'pocket') {
+        const pulse = (o.type === 'bonanza' ? 0.45 : 0.22) + 0.15 * Math.sin(now * 4 + o.seed);
+        const glow = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 1.5);
+        glow.addColorStop(0, `rgba(255, 215, 110, ${pulse})`);
+        glow.addColorStop(1, 'rgba(255, 180, 0, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 1.5, 0, Math.PI * 2);
+        ctx.fill();
+      }
       if (o.type === 'lode') {
         const pulse = 0.55 + 0.25 * Math.sin(now * 5);
         const glow = ctx.createRadialGradient(0, 0, r * 0.4, 0, 0, r * 1.7);
@@ -370,7 +404,21 @@
         ctx.arc(0, 0, r * 1.7, 0, Math.PI * 2);
         ctx.fill();
       }
-      if (o.type === 'nugget') {
+      if (o.type === 'bonanza') {
+        // a gold crystal: bright faces, dark seams between them
+        const g = ctx.createLinearGradient(-r, -r, r, r);
+        g.addColorStop(0, '#fff6d0');
+        g.addColorStop(0.4, '#ffd24a');
+        g.addColorStop(1, '#8a5a06');
+        ctx.fillStyle = g;
+        polygon(sh.pts, r);
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(90, 55, 0, 0.7)';
+        ctx.lineWidth = r * 0.05;
+        for (let i = 0; i < sh.pts.length; i += 2) { ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(sh.pts[i][0] * r, sh.pts[i][1] * r); ctx.stroke(); }
+        ctx.fillStyle = 'rgba(255,255,255,0.8)';
+        ctx.beginPath(); ctx.ellipse(-r * 0.25, -r * 0.35, r * 0.22, r * 0.1, -0.6, 0, Math.PI * 2); ctx.fill();
+      } else if (o.type === 'nugget') {
         const g = ctx.createLinearGradient(-r, -r, r, r);
         g.addColorStop(0, '#fff1b8');
         g.addColorStop(0.45, GOLD);
@@ -383,8 +431,8 @@
         ctx.ellipse(-r * 0.3, -r * 0.35, r * 0.28, r * 0.14, -0.6, 0, Math.PI * 2);
         ctx.fill();
       } else {
-        const quartz = o.type === 'quartz';
-        const host = o.type === 'vein' || o.type === 'lode';
+        const quartz = o.type === 'quartz' || o.type === 'seam';
+        const host = o.type === 'vein' || o.type === 'lode' || o.type === 'pocket';
         const g = ctx.createLinearGradient(-r, -r, r, r);
         g.addColorStop(0, quartz ? pal.quartzLt : host ? pal.rockLt : pal.rockLt);
         g.addColorStop(0.55, quartz ? pal.quartz : host ? pal.host : pal.rock);
@@ -410,7 +458,7 @@
           ctx.stroke();
         }
         for (const f of sh.flecks) {
-          ctx.fillStyle = o.type === 'rock' ? 'rgba(245,197,66,0.55)' : GOLD;
+          ctx.fillStyle = o.type === 'rock' ? 'rgba(245,197,66,0.55)' : o.type === 'pocket' ? GOLD_LT : GOLD;
           ctx.beginPath();
           ctx.arc(f[0] * r, f[1] * r, f[2] * r, 0, Math.PI * 2);
           ctx.fill();
@@ -530,7 +578,7 @@
     }
 
     /* ---- events from the model ---- */
-    const COLORS = { rock: '#8e7b65', quartz: '#e8e2d6', nugget: GOLD, vein: '#4a3e31', lode: GOLD };
+    const COLORS = { rock: '#8e7b65', quartz: '#e8e2d6', nugget: GOLD, vein: '#4a3e31', lode: GOLD, seam: '#e8e2d6', pocket: '#3b3129', bonanza: GOLD };
 
     function consume() {
       const s = view.shift;
@@ -545,9 +593,9 @@
           const o = ev.ore;
           if (!view.reduced) {
             burst(o.x, o.y, COLORS[o.type] || '#888', o.type === 'lode' ? 26 : 9, 260, 0.6, o.type === 'lode' ? 9 : 6);
-            goldFlakes(o.x, o.y, Math.min(o.type === 'lode' ? 30 : 12, 2 + Math.round(Math.sqrt(o.gold / (s.stats.goldMult || 1)) * 4)));
+            goldFlakes(o.x, o.y, Math.min(o.type === 'lode' ? 30 : DEEP.includes(o.type) ? 20 : 12, 2 + Math.round(Math.sqrt(o.gold / (s.stats.goldMult || 1)) * 4)));
           }
-          popup(o.x, o.y - o.r * 0.6, `+${opts.fmtGold ? opts.fmtGold(ev.gold) : ev.gold.toFixed(2)} oz`, o.type === 'lode' ? 'lode' : ev.crit ? 'crit' : 'gold');
+          popup(o.x, o.y - o.r * 0.6, `+${opts.fmtGold ? opts.fmtGold(ev.gold) : ev.gold.toFixed(2)} oz`, o.type === 'lode' ? 'lode' : DEEP.includes(o.type) ? 'deep' : ev.crit ? 'crit' : 'gold');
           if (o.type === 'lode') { view.shakeT = 0.4; view.rings.push({ x: o.x, y: o.y, r: o.r * 3, life: 0.6, max: 0.6, color: GOLD }); }
           if (opts.onDeposit) opts.onDeposit(ev.gold, o);
           if (opts.sound) opts.sound.crack(o.type);
@@ -558,6 +606,8 @@
         } else if (ev.type === 'swing') {
           swung = true;
           if (ev.crit) popup(ev.x, ev.y - 30, 'CRIT!', 'crit');
+        } else if (ev.type === 'depth') {
+          if (opts.onEvent) opts.onEvent({ type: 'depth', level: ev.level, name: ev.name });
         } else if (ev.type === 'lode') {
           view.rings.push({ x: ev.ore.x, y: ev.ore.y, r: ev.ore.r * 2.5, life: 0.8, max: 0.8, color: GOLD });
           if (opts.onEvent) opts.onEvent({ type: 'lode' });
@@ -621,7 +671,7 @@
       ctx.textAlign = 'center';
       for (const t of view.popups) {
         const a = Math.min(1, t.life / t.max * 2);
-        const size = t.kind === 'lode' ? 34 : t.kind === 'crit' ? 22 : 17;
+        const size = t.kind === 'lode' ? 34 : t.kind === 'deep' ? 24 : t.kind === 'crit' ? 22 : 17;
         ctx.font = `700 ${size}px "JetBrains Mono", ui-monospace, monospace`;
         ctx.lineWidth = 4;
         ctx.strokeStyle = `rgba(0,0,0,${0.7 * a})`;
@@ -840,7 +890,7 @@
     return view;
   }
 
-  const Mining = { AREA, ORES, PALETTES, PICKS, TOUCH_LIFT, fieldSize, createShift, update, strike, bestAim, simulate, createView };
+  const Mining = { AREA, ORES, DEPTHS, PALETTES, PICKS, TOUCH_LIFT, fieldSize, createShift, update, strike, bestAim, simulate, createView };
   root.Mining = Mining;
   if (typeof module !== 'undefined' && module.exports) module.exports = Mining;
 })(typeof window !== 'undefined' ? window : globalThis);

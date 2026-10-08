@@ -533,8 +533,16 @@
       if (ev.type === 'start') {
         this.phase = 'running';
         this.renderOverlay();
+      } else if (ev.type === 'depth') {
+        const b = $('mine-banner');
+        b.textContent = `DEEPER: ${ev.name.toUpperCase()}`;
+        b.hidden = false;
+        restartAnim(b, 'show');
+        this.bannerT = 1.6;
+        Sound.start();
       } else if (ev.type === 'lode') {
         const b = $('mine-banner');
+        b.textContent = 'MOTHER LODE!';
         b.hidden = false;
         restartAnim(b, 'show');
         this.bannerT = 2.2;
@@ -590,10 +598,15 @@
       if (this.view.running || this.phase === 'paused') {
         const left = Math.max(0, s.stats.duration - s.t);
         setText($('mine-time'), `${left.toFixed(1)}s`);
+        const lvl = s.depth || 0;
+        setText($('mine-depth'), lvl ? M.DEPTHS[lvl - 1].name.toUpperCase() : 'SURFACE');
+        toggleClass($('mine-depth'), 'deep', lvl > 0);
         setWidth($('mine-time-fill'), left / s.stats.duration);
         toggleClass(document.querySelector('.mine-panel'), 'ending', left < 3 && this.view.running);
       } else {
         setText($('mine-time'), `${dur.toFixed(1)}s`);
+        setText($('mine-depth'), 'SURFACE');
+        toggleClass($('mine-depth'), 'deep', false);
         setWidth($('mine-time-fill'), this.phase === 'report' ? 0 : 1);
         toggleClass(document.querySelector('.mine-panel'), 'ending', false);
       }
@@ -619,6 +632,7 @@
             ? 'Hold your finger <b>just below</b> a rock: the pick floats above your fingertip, so you can watch the rock crack. It hits <b>every rock inside its ring</b>, so aim for clusters.'
             : 'Hold just below the rock: the pick floats above your finger. Aim the ring at clusters of rock and nuggets.')
             : first ? 'Tap a rock to swing your pick, or hold down to keep swinging. The pick hits <b>every rock inside its ring</b>, so aim for clusters.' : 'Tap or hold on the rock. Aim the ring at clusters of rock and nuggets.'}</p>
+          <p class="mo-depth">Shifts dig deeper as they run: richer, tougher ore appears after ${M.DEPTHS.filter((x) => x.t < m.duration).map((x) => `${x.t}s`).join(', ') || '14s'}${m.duration <= 28 ? '. Longer shifts (Lantern Oil) reach the best of it' : ''}.</p>
           <div class="mo-stats"><span>${m.duration.toFixed(0)}s shift</span><span>reach ${Math.round(m.radius)}</span><span>${swings}</span></div>
           <button type="button" class="btn btn-primary btn-big" data-act="start">${A.uiIcon('pick')}Start shift</button>
         </div>`;
@@ -683,7 +697,7 @@
         ['Swings', `${(1 / m.swing).toFixed(1)}/s`, 'Hold down to keep swinging at this pace.'],
       ];
       if (m.critChance > 0) rows.push(['Crits', `${Math.round(m.critChance * 100)}% · ×${m.critMult.toFixed(1)}`, 'Chance of a critical swing, and how much harder it hits.']);
-      rows.push(['Shift', `${m.duration.toFixed(1)}s`, 'Length of each shift.']);
+      rows.push(['Shift', `${m.duration.toFixed(1)}s`, 'Length of each shift. A shift digs deeper as it runs: gold seams after 14 s, gold pockets after 28 s, bonanza crystals after 42 s. Lantern Oil makes shifts longer.']);
       rows.push(['Rock face', `${m.cap} rocks`, 'Rocks in the face at once. Broken rock is replaced.']);
       rows.push(['Gold per rock', `×${fmt(m.goldMult, 2)}`, `Assaying, history and this mine (${d.map.name}: ×${d.map.gold} gold, ×${d.map.hp} rock).`]);
       rows.push(['Mother Lode', `${Math.round(m.lodeChance * 100)}% a shift`, 'Chance that a huge glowing lode appears during a shift.']);

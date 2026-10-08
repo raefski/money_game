@@ -7,6 +7,7 @@ An incremental game about the history of the U.S. dollar, from gold dust at Sutt
 ## The loop
 
 1. **Mine a shift (Mine page).** It is a timed round at the rock face. Tap or hold, and your pick hits every rock inside its ring. Rock, quartz, nuggets and rich veins break into gold. Sometimes a huge Mother Lode appears.
+   - **Shifts dig deeper as they run.** Rock that appears late comes from richer, tougher ground: gold seams after 14 s, gold pockets after 28 s, glowing bonanza crystals after 42 s. A base shift is 20 s, so Lantern Oil (longer shifts) is what reaches the best ore.
 2. **The Mint pays.** Each ounce goes into the Treasury vault as reserves, and the Mint issues dollars for it at the official price divided by the gold cover:
    - $20.67 an ounce at first.
    - $35 after the 1934 Gold Reserve Act.

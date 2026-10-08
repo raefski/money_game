@@ -444,6 +444,7 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
 
 .mine-hud {
   display: flex;
+  flex-wrap: nowrap;
   margin-bottom: 6px;
   justify-content: space-between;
   align-items: flex-start;
@@ -462,8 +463,10 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
   backdrop-filter: blur(4px);
 }
 .mine-timer { flex: 1; }
-.mine-timer .meter { flex: 1; height: 6px; }
+.mine-timer .meter { flex: 1; min-width: 60px; height: 6px; }
 .mine-timer .meter > span { transition: none; }
+.mine-depth { font-size: 10px; letter-spacing: 0.08em; color: var(--text-3); white-space: nowrap; }
+.mine-depth.deep { color: var(--accent); }
 .mine-timer b { font-size: 14px; min-width: 46px; text-align: right; }
 .mine-panel.ending .mine-timer { border-color: rgba(255, 92, 92, .6); }
 .mine-panel.ending .mine-timer b { color: var(--down); animation: live-dot .5s infinite; }
@@ -515,6 +518,7 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
 .mo-kicker { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em; color: var(--accent); }
 .mo-card h3 { margin: 6px 0 6px; font-size: 20px; letter-spacing: -0.01em; }
 .mo-card p { margin: 0 0 12px; color: var(--text-2); font-size: 13px; }
+.mo-card p.mo-depth { font-size: 12px; color: var(--accent); margin-top: -6px; }
 .mo-stats { display: flex; justify-content: center; gap: 6px; flex-wrap: wrap; margin-bottom: 14px; }
 .mo-stats span { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); padding: 2px 8px; border-radius: 10px; border: 1px solid var(--line-2); }
 .mo-big { font-family: var(--font-mono); font-size: 38px; font-weight: 700; color: var(--accent); line-height: 1.15; margin-top: 4px; text-shadow: 0 0 22px var(--accent-glow); }
@@ -1304,6 +1308,9 @@ html.mine-lock .mine-panel { touch-action: none; }
   .mine-panel .panel-head .map-chips { margin-left: 0; width: 100%; }
 }
 @media (max-width: 380px) {
+  .mine-tally span { display: none; }
+  .mine-depth { font-size: 9px; letter-spacing: 0.04em; }
+  .mine-timer .meter { min-width: 36px; }
   .icon-btn { width: 30px; height: 30px; }
   .kpi:nth-child(1) { display: none; }
   .kpi:nth-child(2) { border-left: 0; padding-left: 0; }

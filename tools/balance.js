@@ -88,3 +88,16 @@ console.log('  ' + E.CHARTERS.slice(1).map((c) => `${Math.floor(c.year)}@${times
 const at = (m) => { const e = passive.find(([tt]) => tt / 60 >= m); return e ? `${Math.round(e[1] * 100)}%` : '-'; };
 console.log('Share of income from crews at minute 15/30/60/90/120/180: ' + [15, 30, 60, 90, 120, 180].map(at).join(' '));
 console.log('Crews per site: ' + E.BUILDINGS.map((b) => `${b.id} ${s.run.buildings[b.id]}`).join(', '));
+
+// DUMP=1: what a shift looks like on each mine at the end of the run
+if (process.env.DUMP) {
+  const d = E.derive(s);
+  console.log('Pick at the end:', JSON.stringify({ radius: Math.round(d.mine.radius), damage: Math.round(d.mine.damage), swing: d.mine.swing.toFixed(2), duration: d.mine.duration, cap: d.mine.cap, dynamite: d.mine.dynamite }));
+  console.log('Levels:', ['radius', 'damage', 'speed', 'duration', 'ground', 'assay', 'crit', 'critmult', 'luck', 'dynamite', 'drill'].map((k) => `${k} ${E.level(s, k)}`).join(', '));
+  for (const m of d.maps) {
+    s.settings.map = m;
+    const mine = E.derive(s).mine;
+    const r = M.simulate(mine, { seed: 5, aspect: 0.62, noise: AIM_NOISE });
+    console.log(`  ${m.padEnd(10)} hp×${E.MAP_BY_ID[m].hp} gold ${E.fmt(r.gold, 1)} oz in ${mine.duration}s, rock broken ${r.ore}`);
+  }
+}
