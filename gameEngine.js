@@ -533,13 +533,6 @@
       if (ev.type === 'start') {
         this.phase = 'running';
         this.renderOverlay();
-      } else if (ev.type === 'depth') {
-        const b = $('mine-banner');
-        b.textContent = `DEEPER: ${ev.name.toUpperCase()}`;
-        b.hidden = false;
-        restartAnim(b, 'show');
-        this.bannerT = 1.6;
-        Sound.start();
       } else if (ev.type === 'lode') {
         const b = $('mine-banner');
         b.textContent = 'MOTHER LODE!';
@@ -598,15 +591,10 @@
       if (this.view.running || this.phase === 'paused') {
         const left = Math.max(0, s.stats.duration - s.t);
         setText($('mine-time'), `${left.toFixed(1)}s`);
-        const lvl = s.depth || 0;
-        setText($('mine-depth'), lvl ? M.DEPTHS[lvl - 1].name.toUpperCase() : 'SURFACE');
-        toggleClass($('mine-depth'), 'deep', lvl > 0);
         setWidth($('mine-time-fill'), left / s.stats.duration);
         toggleClass(document.querySelector('.mine-panel'), 'ending', left < 3 && this.view.running);
       } else {
         setText($('mine-time'), `${dur.toFixed(1)}s`);
-        setText($('mine-depth'), 'SURFACE');
-        toggleClass($('mine-depth'), 'deep', false);
         setWidth($('mine-time-fill'), this.phase === 'report' ? 0 : 1);
         toggleClass(document.querySelector('.mine-panel'), 'ending', false);
       }
