@@ -117,7 +117,6 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
   align-items: center;
   gap: 18px;
   padding: 10px var(--gutter);
-  padding-top: calc(10px + env(safe-area-inset-top, 0px));
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, rgba(13, 20, 31, 0.95), rgba(8, 12, 18, 0.95));
 }
@@ -1210,7 +1209,7 @@ html.mine-lock .mine-panel { touch-action: none; }
 /* Phones and small tablets: bottom navigation, one column. */
 @media (max-width: 860px) {
   :root { --nav-h: calc(58px + env(safe-area-inset-bottom, 0px)); }
-  .topbar { flex-wrap: wrap; gap: 8px 12px; padding: 8px var(--gutter); padding-top: calc(8px + env(safe-area-inset-top, 0px)); }
+  .topbar { flex-wrap: wrap; gap: 8px 12px; padding: 8px var(--gutter); }
   .kpis { order: 3; width: 100%; justify-content: space-between; margin-left: 0; gap: 0; flex-wrap: nowrap; }
   .kpi { padding: 2px 8px; min-width: 0; }
   .kpi:first-child { border-left: 0; padding-left: 0; }
