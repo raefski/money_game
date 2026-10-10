@@ -13,12 +13,23 @@ const BETWEEN_SHIFTS = 5;   // seconds spent on the report screen
 const AIM_NOISE = Number(process.env.AIM_NOISE || 0.3); // aim error, as a share of the pick's reach
 
 const cache = new Map();
+const PATCH = 200; // a big zoomed-out face is uniform: simulate a 200-rock patch and scale by area
+function patchOf(mine) {
+  if (mine.cap <= PATCH) return { mine, k: 1 };
+  const f = PATCH / mine.cap;
+  return { mine: Object.assign({}, mine, { cap: PATCH, respawn: mine.respawn / f, zoom: (mine.zoom || 1) * Math.sqrt(f) }), k: 1 / f };
+}
+function simShift(mine, opts) {
+  const { mine: m, k } = patchOf(mine);
+  const r = M.simulate(m, opts);
+  return Object.assign({}, r, { gold: r.gold * k, lodeGold: r.lodeGold, ore: Math.round(r.ore * k) });
+}
 function shiftGold(mine) {
   const key = JSON.stringify(mine);
   if (!cache.has(key)) {
     let g = 0;
-    for (let i = 0; i < 2; i++) g += M.simulate(mine, { seed: 900 + i, aspect: 0.62, noise: AIM_NOISE }).gold;
-    cache.set(key, g / 2);
+    g = simShift(mine, { seed: 900, aspect: 0.62, noise: AIM_NOISE }).gold;
+    cache.set(key, g);
   }
   return cache.get(key);
 }
@@ -40,7 +51,7 @@ let t = 0, n = 0;
 while (t < hours * 3600 && !s.run.charters.c1968) {
   bestMap(s);
   const d = E.derive(s);
-  const res = M.simulate(d.mine, { seed: ++n, aspect: 0.62, noise: AIM_NOISE });
+  const res = simShift(d.mine, { seed: ++n, aspect: 0.62, noise: AIM_NOISE });
   E.deposit(s, res.gold, d);
   E.recordShift(s, res);
   const dt = d.mine.duration + BETWEEN_SHIFTS;

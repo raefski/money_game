@@ -9,26 +9,27 @@
 (function (root) {
   'use strict';
 
-  // Logical field area in units². Width and height follow the screen's
-  // aspect, but the area (and so the rock density) is the same everywhere.
+  // Logical field area in units² at the starting reach. Width and height follow
+  // the screen's aspect, but the area (and so the rock density) is the same
+  // everywhere. A longer reach zooms the view out (stats.zoom): the field grows
+  // and holds more rock, so a late-game face has a thousand rocks or more.
   const AREA = 620000;
 
   const ORES = {
-    rock: { r: 25, hp: 2, gold: 0.035, weight: 52 },
+    rock: { r: 25, hp: 3, gold: 0.25, weight: 52 },  // the surface layer: plain rock
     quartz: { r: 29, hp: 4, gold: 0.2, weight: 38 },
     nugget: { r: 17, hp: 2, gold: 1.0, weight: 6 },
     vein: { r: 38, hp: 14, gold: 1.6, weight: 5 },   // after the Hydraulic Mining charter
     lode: { r: 64, hp: 90, gold: 40 },               // the Mother Lode: at most one per shift
-    // Deep ore: a shift digs deeper as it runs, so rock that respawns late comes
-    // from richer, harder ground. Longer shifts (Lantern Oil) reach deeper layers.
-    // They come on top of the normal rock, a few at a time, so rock your pick
-    // cannot break yet never crowds out the rest.
-    seam: { r: 30, hp: 10, gold: 1.2, depth: 14, max: 3 },
-    pocket: { r: 35, hp: 28, gold: 4, depth: 28, max: 2 },
-    bonanza: { r: 40, hp: 60, gold: 12, depth: 42, max: 2 },
-    geode: { r: 44, hp: 110, gold: 32, depth: 56, max: 2 },      // gold-lined geodes
-    heart: { r: 50, hp: 200, gold: 90, depth: 72, max: 1 },      // the heart of the mountain
-    eldorado: { r: 54, hp: 340, gold: 240, depth: 88, max: 1 },  // El Dorado: white-gold crystal
+    // Layers: a shift digs deeper as it runs, and from each depth on every new
+    // rock is that layer's ore, one kind at a time. Longer shifts (Lantern Oil)
+    // reach the richer, tougher layers.
+    seam: { r: 26, hp: 7, gold: 0.7, depth: 14 },
+    pocket: { r: 27, hp: 14, gold: 1.8, depth: 28 },
+    bonanza: { r: 28, hp: 28, gold: 4.5, depth: 42 },
+    geode: { r: 29, hp: 55, gold: 11, depth: 56 },       // gold-lined geodes
+    heart: { r: 30, hp: 110, gold: 28, depth: 72 },      // the heart of the mountain
+    eldorado: { r: 31, hp: 220, gold: 70, depth: 88 },   // El Dorado: white-gold crystal
   };
   const DEPTHS = [
     { t: 14, name: 'Gold seams' }, { t: 28, name: 'Gold pockets' }, { t: 42, name: 'Bonanza crystals' },
@@ -36,7 +37,7 @@
   ];
   const DEEP = ['seam', 'pocket', 'bonanza', 'geode', 'heart', 'eldorado'];
   const BLAST_DAMAGE = 0.5;   // dynamite hits for this share of pick damage
-  const MAX_BLASTS = 30;      // chain reactions stop here, per strike
+  const MAX_BLASTS = 80;      // chain reactions stop here, per strike
   const TOUCH_LIFT = 88;      // CSS px: default height of the pick above the fingertip on touch
 
   function rng(seed) {
@@ -55,10 +56,11 @@
    * --------------------------------------------------------------------- */
   function createShift(stats, opts = {}) {
     const f = fieldSize(opts.aspect);
+    const z = Math.max(1, stats.zoom || 1);
     const s = {
-      stats, w: f.w, h: f.h, t: 0, over: false, ores: [], nextId: 1, spawnAcc: 0,
+      stats, w: f.w * z, h: f.h * z, t: 0, over: false, ores: [], nextId: 1, spawnAcc: 0,
       rand: rng(opts.seed || 1), gold: 0, ore: 0, crits: 0, best: 0, lodes: 0, lodeGold: 0, strikes: 0,
-      events: [], lodeAt: null, depth: 0, deepAcc: {}, deepSeen: {},
+      events: [], lodeAt: null, depth: 0,
     };
     if (s.rand() < stats.lodeChance) s.lodeAt = stats.duration * (0.2 + s.rand() * 0.45);
     for (let i = 0; i < stats.cap; i++) spawn(s);
@@ -66,17 +68,11 @@
     return s;
   }
 
+  /** New rock is the ore of the deepest layer this shift has reached. */
   function pickType(s) {
-    let total = 0;
-    const pool = [];
-    for (const k of ['rock', 'quartz', 'nugget', 'vein']) {
-      if (k === 'vein' && !s.stats.veins) continue;
-      pool.push([k, ORES[k].weight]);
-      total += ORES[k].weight;
-    }
-    let r = s.rand() * total;
-    for (const [k, w] of pool) if ((r -= w) < 0) return k;
-    return 'rock';
+    let type = 'rock';
+    for (const k of DEEP) if (s.t >= ORES[k].depth) type = k;
+    return type;
   }
 
   function spawn(s, type) {
@@ -84,10 +80,12 @@
     const base = ORES[type];
     const r = base.r * (0.9 + s.rand() * 0.2);
     let x = s.w / 2, y = s.h / 2;
-    for (let tries = 0; tries < 16; tries++) {
+    // on a crowded face (zoomed out) placement is just random: checking overlap against every rock costs too much
+    const tries = s.ores.length > 150 ? 1 : 16;
+    for (let t = 0; t < tries; t++) {
       x = r + 8 + s.rand() * (s.w - 2 * r - 16);
       y = r + 8 + s.rand() * (s.h - 2 * r - 16);
-      if (s.ores.every((o) => Math.hypot(o.x - x, o.y - y) > o.r + r + 4)) break;
+      if (tries === 1 || s.ores.every((o) => Math.hypot(o.x - x, o.y - y) > o.r + r + 4)) break;
     }
     const hp = base.hp * s.stats.hpMult;
     const o = { id: s.nextId++, type, x, y, r, hp, maxHp: hp, gold: base.gold * s.stats.goldMult, seed: Math.floor(s.rand() * 1e9), born: s.t };
@@ -105,15 +103,7 @@
       s.depth++;
     }
     let rocks = 0;
-    const deep = { seam: 0, pocket: 0, bonanza: 0, geode: 0, heart: 0, eldorado: 0 };
-    for (const o of s.ores) { if (o.type in deep) deep[o.type]++; else if (o.type !== 'lode') rocks++; }
-    // deep layers: keep a few of each reached layer on the face, refilled slowly
-    for (const k of DEEP) {
-      const o = ORES[k];
-      if (s.t < o.depth || deep[k] >= o.max) continue;
-      s.deepAcc[k] = (s.deepAcc[k] || 0) + dt;
-      if (s.deepAcc[k] >= st.respawn * 6 || deep[k] === 0 && !s.deepSeen[k]) { s.deepAcc[k] = 0; s.deepSeen[k] = true; spawn(s, k); }
-    }
+    for (const o of s.ores) if (o.type !== 'lode') rocks++;
     if (rocks < st.cap) {
       s.spawnAcc += dt;
       while (s.spawnAcc >= st.respawn && rocks < st.cap) { spawn(s); rocks++; s.spawnAcc -= st.respawn; }
@@ -145,6 +135,17 @@
     return o.gold;
   }
 
+  /** Bucket rock into square cells so blasts only check nearby rock. */
+  function buildGrid(ores, cell) {
+    const grid = new Map();
+    for (const o of ores) {
+      const k = Math.floor(o.x / cell) * 4096 + Math.floor(o.y / cell);
+      const list = grid.get(k);
+      if (list) list.push(o); else grid.set(k, [o]);
+    }
+    return grid;
+  }
+
   /** One swing at (x, y): every rock within reach takes damage. Returns gold won. */
   function strike(s, x, y, source = 'pick') {
     if (s.over) return null;
@@ -163,12 +164,20 @@
     }
     s.events.push({ type: 'swing', x, y, crit, hits, source });
     let blasts = 0;
+    const cell = st.blast + 40;  // grid cell wider than a blast: neighbours are in the 3×3 around it
+    let grid = null;
     while (queue.length && blasts < MAX_BLASTS) {
       const b = queue.shift();
       blasts++;
       s.events.push({ type: 'blast', x: b.x, y: b.y, r: st.blast });
-      for (const o of s.ores) {
-        if (!o.dead && Math.hypot(o.x - b.x, o.y - b.y) <= st.blast + o.r * 0.5) gold += hurt(s, o, st.damage * BLAST_DAMAGE, false, queue);
+      if (!grid) grid = buildGrid(s.ores, cell);
+      const gx = Math.floor(b.x / cell), gy = Math.floor(b.y / cell);
+      for (let i = gx - 1; i <= gx + 1; i++) for (let j = gy - 1; j <= gy + 1; j++) {
+        const list = grid.get(i * 4096 + j);
+        if (!list) continue;
+        for (const o of list) {
+          if (!o.dead && Math.hypot(o.x - b.x, o.y - b.y) <= st.blast + o.r * 0.5) gold += hurt(s, o, st.damage * BLAST_DAMAGE, false, queue);
+        }
       }
     }
     s.ores = s.ores.filter((o) => !o.dead);
@@ -180,10 +189,22 @@
   function bestAim(s, noise = 0) {
     const R = s.stats.radius, D = s.stats.damage;
     let best = null, score = -1;
-    for (const c of s.ores) {
+    // bucket rock into a grid of reach-sized cells, then score up to 60 candidate centers
+    const cell = R + 40, grid = new Map();
+    for (const o of s.ores) {
+      const k = Math.floor(o.x / cell) * 4096 + Math.floor(o.y / cell);
+      if (!grid.has(k)) grid.set(k, []);
+      grid.get(k).push(o);
+    }
+    const n = s.ores.length, step = Math.max(1, Math.floor(n / 60));
+    for (let i = 0; i < n; i += step) {
+      const c = s.ores[i];
+      const cx = Math.floor(c.x / cell), cy = Math.floor(c.y / cell);
       let v = 0;
-      for (const o of s.ores) {
-        if (Math.hypot(o.x - c.x, o.y - c.y) <= R + o.r * 0.6) v += o.gold * Math.min(1, D / Math.max(o.hp, 1e-9)) + 0.001;
+      for (let gx = cx - 1; gx <= cx + 1; gx++) for (let gy = cy - 1; gy <= cy + 1; gy++) {
+        const list = grid.get(gx * 4096 + gy);
+        if (!list) continue;
+        for (const o of list) if (Math.hypot(o.x - c.x, o.y - c.y) <= R + o.r * 0.6) v += o.gold * Math.min(1, D / Math.max(o.hp, 1e-9)) + 0.001;
       }
       if (v > score) { score = v; best = c; }
     }
@@ -223,6 +244,8 @@
       rock: '#63778b', rockLt: '#8398ac', rockDk: '#435466', quartz: '#e9f1f8', quartzLt: '#ffffff', quartzDk: '#b4c3d1', host: '#36465a', snow: true },
   };
   const GOLD = '#f5c542', GOLD_LT = '#ffe39a', GOLD_DK = '#a8740c';
+  // Flat colors for rock drawn at a few pixels across.
+  const FLAT = { rock: '#7d6b57', seam: '#d9d0bf', pocket: '#7a6230', bonanza: '#f0c24a', geode: '#8d5bd6', heart: '#ff8a3a', eldorado: '#fff4cc', lode: GOLD };
   // Pick heads by tier (see Economy.PICK_HEADS): rusty iron → diamond-tipped.
   const PICKS = [
     { head: '#7d5a45', edge: '#a07a5e' }, { head: '#5f6874', edge: '#97a1ad' }, { head: '#9fabba', edge: '#e6ecf3' },
@@ -382,6 +405,17 @@
       let jx = 0, jy = 0;
       if (o.shake > 0) { jx = (Math.random() - 0.5) * 3; jy = (Math.random() - 0.5) * 3; }
       const r = o.r * pop;
+      // zoomed far out, rock is only a few pixels across: draw it flat and fast
+      if (r * view.scale < 11) {
+        ctx.save();
+        ctx.translate(o.x + jx, o.y + jy);
+        ctx.fillStyle = o.flash > 0 ? '#ffffff' : FLAT[o.type] || pal.rock;
+        polygon(sh.pts, r);
+        ctx.fill();
+        if (o.hp < o.maxHp) { ctx.fillStyle = 'rgba(0,0,0,0.45)'; ctx.fillRect(-r, -r * 0.15, r * 2 * (1 - Math.max(0, o.hp) / o.maxHp), r * 0.3); }
+        ctx.restore();
+        return;
+      }
       ctx.save();
       ctx.translate(o.x + jx, o.y + jy);
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
@@ -707,8 +741,9 @@
       for (const t of view.popups) {
         const a = Math.min(1, t.life / t.max * 2);
         const size = t.kind === 'lode' ? 34 : t.kind === 'deep' ? 24 : t.kind === 'crit' ? 22 : 17;
-        ctx.font = `700 ${size}px "JetBrains Mono", ui-monospace, monospace`;
-        ctx.lineWidth = 4;
+        const fpx = (size * 0.8) / view.scale;  // keep popups readable at any zoom
+        ctx.font = `700 ${fpx.toFixed(1)}px "JetBrains Mono", ui-monospace, monospace`;
+        ctx.lineWidth = fpx * 0.22;
         ctx.strokeStyle = `rgba(0,0,0,${0.7 * a})`;
         ctx.strokeText(t.text, t.x, t.y);
         ctx.fillStyle = t.kind === 'crit' ? `rgba(255,138,31,${a})` : `rgba(255,227,154,${a})`;
@@ -739,18 +774,19 @@
         const ready = Math.min(1, (s.t - view.lastStrike) / s.stats.swing);
         ctx.save();
         ctx.translate(view.aim.x, view.aim.y);
+        const px = 1 / view.scale;  // one CSS pixel in field units: the ring stays crisp at any zoom
         ctx.strokeStyle = view.accent;
         ctx.globalAlpha = view.running ? 0.9 : 0.4;
-        ctx.lineWidth = 2;
-        ctx.setLineDash([7, 6]);
+        ctx.lineWidth = 2 * px;
+        ctx.setLineDash([7 * px, 6 * px]);
         ctx.beginPath();
         ctx.arc(0, 0, R, 0, Math.PI * 2);
         ctx.stroke();
         ctx.setLineDash([]);
         if (view.running && ready < 1) {
-          ctx.lineWidth = 3;
+          ctx.lineWidth = 3 * px;
           ctx.beginPath();
-          ctx.arc(0, 0, R + 5, -Math.PI / 2, -Math.PI / 2 + ready * Math.PI * 2);
+          ctx.arc(0, 0, R + 5 * px, -Math.PI / 2, -Math.PI / 2 + ready * Math.PI * 2);
           ctx.stroke();
         }
         ctx.fillStyle = view.accent;

@@ -7,7 +7,8 @@ An incremental game about the history of the U.S. dollar, from gold dust at Sutt
 ## The loop
 
 1. **Mine a shift (Mine page).** It is a timed round at the rock face. Tap or hold, and your pick hits every rock inside its ring. Rock, quartz, nuggets and rich veins break into gold. Sometimes a huge Mother Lode appears.
-   - **Shifts dig deeper as they run.** Rock that appears late comes from richer, tougher ground: gold seams after 14 s, gold pockets after 28 s, bonanza crystals after 42 s, gold geodes after 56 s, the heart of the mountain after 72 s and El Dorado after 88 s. A base shift is 20 s; Lantern Oil (32 levels, up to 100 s) is what reaches the best ore.
+   - **The mine zooms out as your reach grows.** Each Bigger Pick level shows more ground with proportionally more rock: from about 18 rocks at the start to over a thousand at full reach (with Richer Ground). The ring keeps growing on screen, just more slowly.
+   - **Shifts dig deeper as they run, one ore at a time.** A shift starts in plain rock; from 14 s every new rock is gold seam, then gold pockets (28 s), bonanza crystals (42 s), gold geodes (56 s), the heart of the mountain (72 s) and El Dorado (88 s). Each layer is richer and tougher. A base shift is 20 s; Lantern Oil (32 levels, up to 100 s) reaches the deeper layers.
 2. **The Mint pays.** Each ounce goes into the Treasury vault as reserves, and the Mint issues dollars for it at the official price divided by the gold cover:
    - $20.67 an ounce at first.
    - $35 after the 1934 Gold Reserve Act.
@@ -88,8 +89,8 @@ Claude artifacts need one self-contained file. `python3 tools/build-artifact.py 
 
 `node tools/balance.js` simulates an efficient player: it holds down, aims at the best cluster with some error, and buys whatever pays back fastest, looking a few levels ahead. `node tools/calibrate.js [scale]` fits the charter prices to a target timeline with that bot and writes them into `economy.js`.
 
-- **Timeline:** the bot signs the 1849 charter at about minute 2, Comstock (1859) at 12, Homestake (1876) at 43, the Federal Reserve Act (1913) at 94, and the Gold Pool's collapse (1968) at about 185 minutes. A person should take 3+ hours.
-- **Crews:** they bring in about 8% of income at 15 minutes, 25–35% mid-game and about 40% late. Clicking stays the main source of income.
+- **Timeline:** the bot signs the 1849 charter at about minute 2, Comstock (1859) at 12, Homestake (1876) at 32, the Federal Reserve Act (1913) at 123, and the Gold Pool's collapse (1968) at about 203 minutes. A person should take 3+ hours.
+- **Crews:** they bring in about 8% of income at 15 minutes, 25–35% mid-game and under 40% late. Clicking stays the main source of income.
 
 The tuning levers, all in `economy.js`:
 
