@@ -37,7 +37,8 @@
   ];
   const DEEP = ['seam', 'pocket', 'bonanza', 'geode', 'heart', 'eldorado'];
   const BLAST_DAMAGE = 0.5;   // dynamite hits for this share of pick damage
-  const MAX_BLASTS = 80;      // chain reactions stop here, per strike
+  const MAX_BLASTS = 60;      // chain reactions stop here, per strike
+  const BLAST_REACH = 4;    // a blast reaches this many times the exploding rock's radius
   const TOUCH_LIFT = 88;      // CSS px: default height of the pick above the fingertip on touch
 
   function rng(seed) {
@@ -131,7 +132,7 @@
     s.gold += o.gold;
     if (o.type === 'lode') { s.lodes++; s.lodeGold += o.gold; }
     s.events.push({ type: 'break', ore: o, gold: o.gold, crit });
-    if (s.stats.dynamite && s.rand() < s.stats.dynamite) queue.push({ x: o.x, y: o.y });
+    if (s.stats.dynamite && s.rand() < s.stats.dynamite) queue.push({ x: o.x, y: o.y, r: o.r * BLAST_REACH });  // sized by the rock, not your pick
     return o.gold;
   }
 
@@ -164,19 +165,19 @@
     }
     s.events.push({ type: 'swing', x, y, crit, hits, source });
     let blasts = 0;
-    const cell = st.blast + 40;  // grid cell wider than a blast: neighbours are in the 3×3 around it
+    const cell = ORES.lode.r * BLAST_REACH + 70;  // wider than any blast: neighbours are in the 3×3 around it
     let grid = null;
     while (queue.length && blasts < MAX_BLASTS) {
       const b = queue.shift();
       blasts++;
-      s.events.push({ type: 'blast', x: b.x, y: b.y, r: st.blast });
+      s.events.push({ type: 'blast', x: b.x, y: b.y, r: b.r });
       if (!grid) grid = buildGrid(s.ores, cell);
       const gx = Math.floor(b.x / cell), gy = Math.floor(b.y / cell);
       for (let i = gx - 1; i <= gx + 1; i++) for (let j = gy - 1; j <= gy + 1; j++) {
         const list = grid.get(i * 4096 + j);
         if (!list) continue;
         for (const o of list) {
-          if (!o.dead && Math.hypot(o.x - b.x, o.y - b.y) <= st.blast + o.r * 0.5) gold += hurt(s, o, st.damage * BLAST_DAMAGE, false, queue);
+          if (!o.dead && Math.hypot(o.x - b.x, o.y - b.y) <= b.r + o.r * 0.5) gold += hurt(s, o, st.damage * BLAST_DAMAGE, false, queue);
         }
       }
     }
@@ -614,7 +615,7 @@
     }
 
     function popup(x, y, text, kind) {
-      if (view.popups.length > 40) view.popups.shift();
+      if (view.popups.length > 10) view.popups.shift();
       view.popups.push({ x, y, text, kind, life: kind === 'lode' ? 1.8 : 0.9, max: kind === 'lode' ? 1.8 : 0.9 });
     }
 
@@ -652,6 +653,7 @@
     function consume() {
       const s = view.shift;
       let swung = false, cracked = false;
+      let sum = 0, count = 0, anyCrit = false, deep = false, at = null;
       for (const ev of s.events) {
         if (ev.type === 'hit') {
           ev.ore.flash = 1;
@@ -664,7 +666,9 @@
             burst(o.x, o.y, COLORS[o.type] || '#888', o.type === 'lode' ? 26 : 9, 260, 0.6, o.type === 'lode' ? 9 : 6);
             goldFlakes(o.x, o.y, Math.min(o.type === 'lode' ? 30 : DEEP.includes(o.type) ? 20 : 12, 2 + Math.round(Math.sqrt(o.gold / (s.stats.goldMult || 1)) * 4)));
           }
-          popup(o.x, o.y - o.r * 0.6, `+${opts.fmtGold ? opts.fmtGold(ev.gold) : ev.gold.toFixed(2)} oz`, o.type === 'lode' ? 'lode' : DEEP.includes(o.type) ? 'deep' : ev.crit ? 'crit' : 'gold');
+          // one popup per swing with the total, not one per rock
+          if (o.type === 'lode') popup(o.x, o.y - o.r * 0.6, `+${opts.fmtGold ? opts.fmtGold(ev.gold) : ev.gold.toFixed(2)} oz`, 'lode');
+          else { sum += ev.gold; count++; if (ev.crit) anyCrit = true; if (DEEP.includes(o.type)) deep = true; if (!at) at = { x: o.x, y: o.y - o.r }; }
           if (o.type === 'lode') { view.shakeT = 0.4; view.rings.push({ x: o.x, y: o.y, r: o.r * 3, life: 0.6, max: 0.6, color: GOLD }); }
           if (opts.onDeposit) opts.onDeposit(ev.gold, o);
           if (opts.sound) opts.sound.crack(o.type);
@@ -674,7 +678,7 @@
           if (opts.sound) opts.sound.blast();
         } else if (ev.type === 'swing') {
           swung = true;
-          if (ev.crit) popup(ev.x, ev.y - 30, 'CRIT!', 'crit');
+          at = { x: ev.x, y: ev.y - s.stats.radius * 0.8 };
         } else if (ev.type === 'depth') {
           if (opts.onEvent) opts.onEvent({ type: 'depth', level: ev.level, name: ev.name });
         } else if (ev.type === 'lode') {
@@ -685,6 +689,15 @@
         }
       }
       s.events.length = 0;
+      if (count) {
+        // holding on one spot: keep adding to the running total there instead of stacking popups
+        const near = view.popups.find((p) => p.agg && p.life > p.max * 0.4 && Math.hypot(p.x - at.x, p.y - at.y) < 70 / view.scale);
+        const t = near || { agg: true, sum: 0, count: 0, crit: false };
+        t.sum += sum; t.count += count; t.crit = t.crit || anyCrit;
+        const text = `${t.crit ? 'CRIT ' : ''}+${opts.fmtGold ? opts.fmtGold(t.sum) : t.sum.toFixed(2)} oz${t.count > 1 ? ` ×${t.count}` : ''}`;
+        if (near) { near.text = text; near.life = near.max; near.kind = t.crit ? 'crit' : near.kind; }
+        else { popup(at.x, at.y, text, anyCrit ? 'crit' : deep ? 'deep' : 'gold'); Object.assign(view.popups[view.popups.length - 1], t); }
+      }
       if (swung && opts.sound) opts.sound.strike(cracked);
     }
 
