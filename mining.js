@@ -294,7 +294,7 @@
   }
 
   function createView(canvas, opts = {}) {
-    const ctx = canvas.getContext('2d');
+    let ctx = canvas.getContext('2d');
     const view = {
       shift: null, running: false, paused: false,
       aim: null, finger: null, holding: false, queued: false, lastStrike: -1e9, nextDrill: 0,
@@ -717,6 +717,30 @@
       let sx = 0, sy = 0;
       if (view.shakeT > 0 && !view.reduced) { sx = (Math.random() - 0.5) * 8; sy = (Math.random() - 0.5) * 8; }
       ctx.setTransform(view.dpr * view.scale, 0, 0, view.dpr * view.scale, view.dpr * (view.ox + sx), view.dpr * (view.oy + sy));
+      if (s && view.zoomAnim) {
+        // zooming out after a reach upgrade: start magnified on the center and ease out to the full field
+        const a = view.zoomAnim, p = Math.min(1, a.t / a.dur), e = 1 - Math.pow(1 - p, 3);
+        const m = a.k + (1 - a.k) * e;
+        ctx.translate(s.w / 2, s.h / 2);
+        ctx.scale(m, m);
+        ctx.translate(-s.w / 2, -s.h / 2);
+      }
+      if (s) {
+        // the backdrop never changes during a shift: render it once per field and size, then reuse it
+        const key = `${s.w}x${s.h}|${canvas.width}x${canvas.height}|${view.scale}|${view.ox},${view.oy}`;
+        if (view.bdKey !== key) {
+          view.bdKey = key;
+          const c = view.bd || (view.bd = document.createElement('canvas'));
+          c.width = canvas.width;
+          c.height = canvas.height;
+          const main = ctx;
+          ctx = c.getContext('2d');
+          ctx.setTransform(view.dpr * view.scale, 0, 0, view.dpr * view.scale, view.dpr * view.ox, view.dpr * view.oy);
+          drawBackdrop(s);
+          ctx = main;
+        }
+        ctx.drawImage(view.bd, -view.ox / view.scale, -view.oy / view.scale, canvas.width / (view.dpr * view.scale), canvas.height / (view.dpr * view.scale));
+      }
       const now = s ? s.t : 0;
       if (s) for (const o of s.ores) drawOre(o, now);
       for (const r of view.rings) {
@@ -838,6 +862,55 @@
       if (tier >= 6) { ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(16, -13, 2.6, 0, Math.PI * 2); ctx.arc(-14, 5, 2.6, 0, Math.PI * 2); ctx.fill(); }
     }
 
+    /**
+     * Mine workings drawn in field units, anchored on the field's center: rock
+     * strata, rail lines and timber frames with lanterns. They shrink and multiply
+     * as a longer reach zooms the view out, so the zoom reads as distance.
+     */
+    function drawBackdrop(s) {
+      const cx = s.w / 2, cy = s.h / 2, px = 1 / view.scale;
+      ctx.save();
+      // strata
+      ctx.strokeStyle = 'rgba(255, 225, 180, 0.07)';
+      ctx.lineWidth = 9;
+      for (let j = -Math.ceil(cy / 260); j <= Math.ceil(cy / 260); j++) {
+        const y = cy + j * 260 + 80;
+        ctx.beginPath();
+        ctx.moveTo(0, y);
+        for (let x = 0; x <= s.w + 120; x += 120) ctx.lineTo(x, y + Math.sin(x * 0.011 + j * 1.7) * 26);
+        ctx.stroke();
+      }
+      // rail lines with ties
+      for (let j = -Math.ceil(cy / 780); j <= Math.ceil(cy / 780); j++) {
+        const y = cy + j * 780 + 390;
+        if (y < 0 || y > s.h) continue;
+        ctx.fillStyle = 'rgba(70, 48, 28, 0.55)';
+        for (let x = (cx % 34) - 34; x < s.w; x += 34) ctx.fillRect(x, y - 13, 9, 26);
+        ctx.strokeStyle = 'rgba(150, 160, 175, 0.45)';
+        ctx.lineWidth = Math.max(3, 1.2 * px);
+        for (const dy of [-8, 8]) { ctx.beginPath(); ctx.moveTo(0, y + dy); ctx.lineTo(s.w, y + dy); ctx.stroke(); }
+      }
+      // timber frames with a lantern, on a staggered grid
+      for (let i = -Math.ceil(cx / 560) - 1; i <= Math.ceil(cx / 560) + 1; i++) {
+        for (let j = -Math.ceil(cy / 520) - 1; j <= Math.ceil(cy / 520) + 1; j++) {
+          const x = cx + i * 560 + (j % 2 ? 280 : 0), y = cy + j * 520;
+          if (x < -100 || x > s.w + 100 || y < -100 || y > s.h + 140) continue;
+          const glow = ctx.createRadialGradient(x, y - 70, 4, x, y - 70, 110);
+          glow.addColorStop(0, 'rgba(255, 200, 110, 0.16)');
+          glow.addColorStop(1, 'rgba(255, 200, 110, 0)');
+          ctx.fillStyle = glow;
+          ctx.beginPath(); ctx.arc(x, y - 70, 110, 0, Math.PI * 2); ctx.fill();
+          ctx.fillStyle = 'rgba(92, 62, 34, 0.6)';
+          ctx.fillRect(x - 70, y - 120, 14, 130);
+          ctx.fillRect(x + 56, y - 120, 14, 130);
+          ctx.fillRect(x - 82, y - 132, 164, 16);
+          ctx.fillStyle = 'rgba(255, 214, 120, 0.85)';
+          ctx.fillRect(x - 5, y - 112, 10, 14);
+        }
+      }
+      ctx.restore();
+    }
+
     /* ---- input ---- */
     function onDown(e) {
       if (e.button != null && e.button > 0) return;
@@ -948,6 +1021,14 @@
     view.frame = (dt) => {
       dt = Math.min(dt || 0, 0.1);
       const s = view.shift;
+      if (view.zoomAnim) {
+        // the zoom-out plays first; the shift clock waits for it
+        view.zoomAnim.t += dt;
+        if (view.zoomAnim.t >= view.zoomAnim.dur) view.zoomAnim = null;
+        stepParticles(dt);
+        draw();
+        return;
+      }
       if (s && view.running && !view.paused && dt > 0) {
         update(s, dt);
         consume();
@@ -969,6 +1050,12 @@
     view.setReduced = (r) => { view.reduced = !!r; };
     view.refreshTheme = readAccent;
     view.setLift = (px) => { view.lift = Math.max(0, Number(px) || TOUCH_LIFT); };
+    /** Play a zoom-out from an earlier zoom level to the current one. */
+    view.zoomFrom = (prevZoom) => {
+      const z = (view.shift && view.shift.stats.zoom) || 1;
+      if (!(prevZoom > 0) || z <= prevZoom * 1.001 || view.reduced) return;
+      view.zoomAnim = { k: z / prevZoom, t: 0, dur: Math.min(1.8, 0.7 + 0.5 * Math.log2(z / prevZoom) + 0.4) };
+    };
     view.abort = () => { view.running = false; view.holding = false; canvas.classList.remove('live'); };
     resize();
     return view;

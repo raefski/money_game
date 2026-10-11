@@ -429,6 +429,7 @@
       });
       this.view.setReduced(reducedMotion());
       this.view.setLift(G.state.settings.lift);
+      this.shownZoom = G.d.mine.zoom;
       this.view.attachPad($('mine-pad'), () => this.act(this.phase === 'paused' ? 'resume' : 'start'));
       this.syncPad();
       if (window.ResizeObserver) new ResizeObserver(() => this.resize()).observe($('mine-wrap'));
@@ -484,7 +485,7 @@
     },
     enter() {
       this.fitHeight();
-      requestAnimationFrame(() => this.resize());
+      requestAnimationFrame(() => { this.resize(); if (this.phase === 'ready') this.showZoom(); });
       this.renderOverlay();
     },
     leave() {
@@ -506,8 +507,15 @@
       this.view.resize();
       this.view.start(G.d.mine);
       this.statsKey = JSON.stringify(G.d.mine);
+      this.showZoom();
       Sound.start();
       try { $('mine-canvas').focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+    },
+    /** After a reach upgrade, zoom out from the view the player last saw. */
+    showZoom() {
+      const z = G.d.mine.zoom;
+      if (this.shownZoom && z > this.shownZoom * 1.001) this.view.zoomFrom(this.shownZoom);
+      this.shownZoom = z;
     },
     pause() {
       if (!this.view.running) return;
@@ -564,7 +572,7 @@
       if (key === this.statsKey) return;
       this.statsKey = key;
       if (this.view.running) this.view.setStats(G.d.mine);
-      else if (this.phase === 'ready' && Pages.current === 'mine') this.view.preview(G.d.mine);
+      else if (this.phase === 'ready' && Pages.current === 'mine') { this.view.preview(G.d.mine); this.showZoom(); }
     },
     mapsChanged() {
       refresh();
