@@ -225,7 +225,7 @@
     else if (it.kind === 'permit') {
       const b = E.BUILDING_BY_ID[it.site];
       addLog('Permit granted', `${b.name}: hire crews in Territory.`, 'build');
-      toast({ kicker: 'PERMIT GRANTED', title: b.name, text: `${E.effectLine(G.state, it, G.d)}. Hire crews on the Territory page.`, icon: A.picto(b.id) });
+      toast({ kicker: 'PERMIT GRANTED', title: b.name, text: `${itemEffect(it)}. Hire crews on the Territory page.`, icon: A.picto(b.id) });
       Sound.buy(true);
     } else if (it.kind === 'tool') {
       addLog('New tool', `${it.name}. ${it.desc}`, 'research');
@@ -708,6 +708,27 @@
       <path d="M9 22Q19 7 34 6" fill="none" stroke="${P.head}" stroke-width="${5 + tier * 0.5}" stroke-linecap="round"/>
       <path d="M11 19Q20 7 32 5" fill="none" stroke="${P.edge}" stroke-width="1.6" stroke-linecap="round"/>`;
   }
+  /** Gold per minute, in ounces and dollars: what crews mean in plain terms. */
+  function perMin(ozPerSec) {
+    const m = ozPerSec * 60;
+    return `${fmt(m, m < 10 ? 2 : 1)} oz/min (${fmtUSD(m * G.d.dollarsPerOz)}/min)`;
+  }
+  /** Effect line for shop cards: permits and site tiers in gold per minute, not % of pace. */
+  function itemEffect(it) {
+    const s = G.state, d = G.d;
+    if (it.kind === 'permit' || it.kind === 'tier') {
+      if (!(d.pace > 0)) return 'Crews earn a share of your mining speed: mine a shift first to see what they would earn';
+      const b = E.BUILDING_BY_ID[it.site];
+      if (it.kind === 'permit') {
+        const lim = d.limit[it.site];
+        return `First crew +${perMin(E.siteShare(lim, 1) * d.pace)} · this site can reach ${perMin(lim * d.pace)}`;
+      }
+      const now = d.buildingRate[it.site];
+      const next = now * it.mult / E.TIER_MULTS[it.tier - 1];
+      return now > 0 ? `${b.name} crews ${perMin(now)} → ${perMin(next)}` : `${b.name} crews earn ×${it.mult} instead of ×${E.TIER_MULTS[it.tier - 1]}`;
+    }
+    return E.effectLine(s, it, d);
+  }
   function pickNote(lvl) {
     const t = E.pickHead(lvl), next = E.PICK_HEADS[t + 1];
     return `<div class="scard-note">Head: ${esc(E.PICK_HEADS[t].name)}${next ? ` · ${esc(next.name)} at LV ${next.lv}` : ''}</div>`;
@@ -859,7 +880,7 @@
         : it.kind === 'tier' ? `TIER ${ROMAN[it.tier]}`
           : it.kind === 'charter' ? String(Math.floor(it.year))
             : it.kind === 'permit' ? 'PERMIT' : 'TOOL';
-      const effect = E.effectLine(s, it, d);
+      const effect = itemEffect(it);
       const desc = it.kind === 'charter' ? it.text : it.desc;
       const req = st === 'locked' ? E.missing(s, it) : [];
       const q = this.cost(it);
@@ -894,7 +915,7 @@
         box._key = key;
         box.innerHTML = pick.length ? pick.map((it) => {
           const lvl = E.level(s, it.id);
-          const effect = it.kind === 'level' ? `${it.show(it.value(lvl))} → ${it.show(it.value(lvl + 1))}` : E.effectLine(s, it, G.d);
+          const effect = it.kind === 'level' ? `${it.show(it.value(lvl))} → ${it.show(it.value(lvl + 1))}` : itemEffect(it);
           return `<button type="button" class="qbuy" data-buy="${it.id}"><span class="qbuy-ico">${this.icon(it)}</span><span class="qbuy-main"><b>${esc(it.name)}</b><small>${esc(effect)}</small></span><span class="qbuy-cost"></span></button>`;
         }).join('') : '<p class="empty">Everything available is bought. Sign the next charter to unlock more.</p>';
       }
@@ -1026,7 +1047,7 @@
         setText(c.count, String(owned));
         const limit = d.limit[b.id];
         if (state === 'locked') {
-          setText(c.out, `Crews up to ${E.pct(limit)} of your pace`);
+          setText(c.out, d.pace > 0 ? `Up to ${perMin(limit * d.pace)}` : 'Crews earn a share of your mining');
           setText(c.next, 'Opens with a charter');
           setWidth(c.share, 0);
           setText(c.qty, 'LOCKED');
@@ -1034,7 +1055,7 @@
           toggleClass(c.root, 'can', false);
         } else if (state === 'permit') {
           const it = E.ITEM_BY_ID[`permit_${b.id}`];
-          setText(c.out, `Crews up to ${E.pct(limit)} of your pace`);
+          setText(c.out, d.pace > 0 ? `First crew +${perMin(E.siteShare(limit, 1) * d.pace)}` : 'Mine a shift to see earnings');
           setText(c.next, 'Needs a permit first');
           setWidth(c.share, 0);
           setText(c.qty, 'PERMIT');
@@ -1042,9 +1063,9 @@
           toggleClass(c.root, 'can', s.dollars >= it.cost);
         } else {
           const share = d.buildingShare[b.id];
-          setText(c.out, owned ? `${E.pct(share)} of pace · ${rate(d.buildingRate[b.id])} oz/s` : `No crews yet · limit ${E.pct(limit)}`);
+          setText(c.out, owned ? perMin(d.buildingRate[b.id]) : 'No crews yet');
           setWidth(c.share, limit > 0 ? share / limit : 0);
-          setText(c.next, `Next crew +${E.pct(d.nextShare[b.id])} · limit ${E.pct(limit)}`);
+          setText(c.next, `Next crew +${perMin(d.nextRate[b.id])}`);
           const q = E.purchaseQuote(s, b, s.settings.buyAmount);
           const can = s.dollars >= q.cost;
           setText(c.qty, q.isMax ? `MAX ×${can ? q.n : 1}` : `HIRE ×${q.n}`);
@@ -1054,12 +1075,11 @@
       }
       setText($('ops-count'), `${fmt(built)} ${built === 1 ? 'CREW' : 'CREWS'}`);
       setText($('scene-sites'), `${sites} / ${E.BUILDINGS.length} SITES`);
-      setText($('crew-share'), E.pct(d.paceShare));
+      setText($('crew-share'), perMin(d.siteRate));
       const maxShare = E.BUILDINGS.reduce((a, b) => a + (E.hasPermit(s, b.id) ? d.limit[b.id] : 0), 0);
-      setText($('crew-cap'), maxShare ? `(limit ${E.pct(maxShare)} with your permits)` : '(buy a permit to hire crews)');
+      setText($('crew-cap'), maxShare ? `(${E.pct(d.paceShare)} of what you mine; up to ${E.pct(maxShare)} with your permits)` : '(buy a permit to hire crews)');
       setWidth($('crew-fill'), maxShare ? d.paceShare / maxShare : 0);
-      setText($('crew-pace'), `${rate(d.pace)} oz/s`);
-      setText($('crew-rate'), `${rate(d.siteRate)} oz/s · ${usdRate(d.dollarRate)}/s`);
+      setText($('crew-pace'), `${fmt(d.pace * 60, 1)} oz/min`);
       setWidth($('industry-fill'), d.industry);
       setText($('industry-val'), `${Math.round(d.industry * 100)}%`);
       this.renderScene();
@@ -1739,7 +1759,7 @@
       setText($('kpi-reserves'), oz(s.run.reserves));
       setText($('mini-dollars'), fmtUSD(s.dollars));
       setText($('mini-reserves'), oz(s.run.reserves));
-      setText($('kpi-crews'), `+${usdRate(d.dollarRate)}/s`);
+      setText($('kpi-crews'), `+${usdRate(d.dollarRate * 60)}/min`);
     },
 
     /* ---- 5 Hz: structure, affordability, the visible page ---- */
