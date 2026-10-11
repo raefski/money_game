@@ -37,7 +37,7 @@
   ];
   const DEEP = ['seam', 'pocket', 'bonanza', 'geode', 'heart', 'eldorado'];
   const BLAST_DAMAGE = 0.5;   // dynamite hits for this share of pick damage
-  const MAX_BLASTS = 60;      // chain reactions stop here, per strike
+  const MAX_BLASTS = 300;     // chain reactions stop here, per strike
   const BLAST_REACH = 4;    // a blast reaches this many times the exploding rock's radius
   const TOUCH_LIFT = 88;      // CSS px: default height of the pick above the fingertip on touch
 
@@ -132,7 +132,7 @@
     s.gold += o.gold;
     if (o.type === 'lode') { s.lodes++; s.lodeGold += o.gold; }
     s.events.push({ type: 'break', ore: o, gold: o.gold, crit });
-    if (s.stats.dynamite && s.rand() < s.stats.dynamite) queue.push({ x: o.x, y: o.y, r: o.r * BLAST_REACH });  // sized by the rock, not your pick
+    if (s.stats.dynamite && s.rand() < s.stats.dynamite) queue.push({ x: o.x, y: o.y, r: o.r * (s.stats.blastReach || BLAST_REACH) });  // sized by the rock, not your pick
     return o.gold;
   }
 
@@ -165,7 +165,7 @@
     }
     s.events.push({ type: 'swing', x, y, crit, hits, source });
     let blasts = 0;
-    const cell = ORES.lode.r * BLAST_REACH + 70;  // wider than any blast: neighbours are in the 3×3 around it
+    const cell = ORES.lode.r * (st.blastReach || BLAST_REACH) + 70;  // wider than any blast: neighbours are in the 3×3 around it
     let grid = null;
     while (queue.length && blasts < MAX_BLASTS) {
       const b = queue.shift();
@@ -673,7 +673,7 @@
           if (opts.onDeposit) opts.onDeposit(ev.gold, o);
           if (opts.sound) opts.sound.crack(o.type);
         } else if (ev.type === 'blast') {
-          view.rings.push({ x: ev.x, y: ev.y, r: ev.r, life: 0.35, max: 0.35, color: '#ff8a1f' });
+          if (view.rings.length < 80) view.rings.push({ x: ev.x, y: ev.y, r: ev.r, life: 0.35, max: 0.35, color: '#ff8a1f' });  // a fission chain draws plenty at 80
           view.shakeT = Math.max(view.shakeT, 0.15);
           if (opts.sound) opts.sound.blast();
         } else if (ev.type === 'swing') {
@@ -742,7 +742,19 @@
         ctx.drawImage(view.bd, -view.ox / view.scale, -view.oy / view.scale, canvas.width / (view.dpr * view.scale), canvas.height / (view.dpr * view.scale));
       }
       const now = s ? s.t : 0;
-      if (s) for (const o of s.ores) drawOre(o, now);
+      if (s) {
+        // tiny far-away rock is batched: one path per color, filled once
+        const batch = {};
+        for (const o of s.ores) {
+          if (o.r * view.scale < 11 && !(o.flash > 0) && !(o.shake > 0) && now - o.born > 0.18) {
+            const col = FLAT[o.type] || '#7d6b57';
+            const path = batch[col] || (batch[col] = new Path2D());
+            path.moveTo(o.x + o.r * 0.85, o.y);
+            path.arc(o.x, o.y, o.r * 0.85, 0, Math.PI * 2);
+          } else drawOre(o, now);
+        }
+        for (const col in batch) { ctx.fillStyle = col; ctx.fill(batch[col]); }
+      }
       for (const r of view.rings) {
         const k = 1 - r.life / r.max;
         ctx.strokeStyle = r.color;

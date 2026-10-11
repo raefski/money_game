@@ -422,7 +422,7 @@
   ];
 
   [
-    { id: 'radius', cat: 'pickaxe', name: 'Bigger Pick', icon: 'ring', base: 18, growth: 2.2, max: 30,
+    { id: 'radius', cat: 'pickaxe', name: 'Bigger Pick', icon: 'ring', base: 18, growth: 1.85, max: 45,
       value: (l) => 34 * Math.pow(1.07, l), show: (v) => `${Math.round(v)} reach`,
       desc: 'A wider head hits every rock inside its reach. A longer reach also zooms the mine out: more ground, and more rock to break.' },
     { id: 'damage', cat: 'pickaxe', name: 'Stronger Pick', icon: 'hammer', base: 25, growth: 1.6, max: 60,
@@ -449,9 +449,9 @@
     { id: 'luck', cat: 'shift', name: 'Lucky Lamp', icon: 'clover', base: 71000, growth: 2, max: 10, requires: { charter: 'c1873' },
       value: (l) => 0.06 * l, show: (v) => `+${Math.round(v * 100)}% Mother Lode chance`,
       desc: 'Better odds that a Mother Lode shows up during a shift.' },
-    { id: 'dynamite', cat: 'tools', name: 'Dynamite Bundles', icon: 'dynamite', base: 130000, growth: 2.8, max: 10, requires: { item: 'tool_dynamite' },
-      value: (l) => 0.1 + 0.04 * l, show: (v) => `${Math.round(v * 100)}% blast chance`,
-      desc: 'Bigger bundles: a broken rock is more likely to explode into its neighbours.' },
+    { id: 'dynamite', cat: 'tools', name: 'Dynamite Bundles', icon: 'dynamite', base: 130000, growth: 2.3, max: 20, requires: { item: 'tool_dynamite' },
+      value: (l) => 0.1 + 0.04 * l, show: (v) => `${Math.round(v * 100)}% blast chance, blasts ${(4 + (v - 0.1) * 5).toFixed(1)}× a rock`,
+      desc: 'Bigger bundles: a broken rock is more likely to explode, and each blast reaches further, so chains run through the face like a fission reaction.' },
     { id: 'drill', cat: 'tools', name: 'Air Compressor', icon: 'drill', base: 2400000, growth: 2.8, max: 10, requires: { item: 'tool_drill' },
       value: (l) => 0.5 + 0.1 * l, show: (v) => `drill at ${Math.round(v * 100)}% of swing speed`,
       desc: 'More air pressure: the rock drill strikes on its own, faster.' },
@@ -884,14 +884,17 @@
       duration: val('duration'),
       // a longer reach zooms the mine out: more ground, proportionally more rock
       zoom: Math.pow(radius / 34, 0.6),
-      cap: Math.round(val('ground') * Math.pow(radius / 34, 1.6)),
-      respawn: 0.32 * Math.pow(0.92, lv('ground')) / Math.pow(radius / 34, 1.6),
+      // (capped near 2,400 rocks so phones stay smooth; past that a longer reach covers more of the face)
+      cap: Math.round(val('ground') * Math.min(Math.pow(radius / 34, 1.6), 2400 / val('ground'))),
+      respawn: 0.32 * Math.pow(0.92, lv('ground')) / Math.min(Math.pow(radius / 34, 1.6), 2400 / val('ground')),
       hpMult: map.hp,
       goldMult: map.gold * yieldMult,
       lodeChance: Math.min(0.9, BASE_LODE_CHANCE + val('luck') + lodeBonus),
       veins: !!ch.c1853,
       dynamite: owns(state, 'tool_dynamite') ? val('dynamite') : 0,
       blast: radius * 1.35,
+      // dynamite chains like fission: each level widens the blast (4× a rock's radius, up to 8×)
+      blastReach: 4 + 0.2 * lv('dynamite'),
       drill: owns(state, 'tool_drill') ? val('drill') : 0,
       foreman: owns(state, 'tool_foreman'),
     };
