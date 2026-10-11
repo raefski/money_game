@@ -1073,9 +1073,13 @@
           const share = d.buildingShare[b.id];
           setText(c.out, owned ? perMin(d.buildingRate[b.id]) : 'No crews yet');
           setWidth(c.share, limit > 0 ? share / limit : 0);
-          setText(c.next, `Next crew +${perMin(d.nextRate[b.id])}`);
           const q = E.purchaseQuote(s, b, s.settings.buyAmount);
           const can = s.dollars >= q.cost;
+          // what this purchase (×1, ×10, ×100 or MAX) adds per minute, and how fast it pays for itself
+          const n = q.isMax && !can ? 1 : q.n;
+          const gain = (E.siteShare(limit, owned + n) - d.buildingShare[b.id]) * d.pace;
+          const back = gain > 0 ? q.cost / (gain * d.dollarsPerOz) : Infinity;
+          setText(c.next, d.pace > 0 ? `${n === 1 ? 'Next crew' : `${n} more crews`}: +${perMin(gain)} · ${back <= 6 * 3600 ? `pays back in ${fmtTime(back)}` : d.buildingShare[b.id] > 0.9 * limit ? 'site is nearly full: barely worth it' : 'too costly for what it adds: try a smaller amount'}` : 'Mine a shift to see what crews earn');
           setText(c.qty, q.isMax ? `MAX ×${can ? q.n : 1}` : `HIRE ×${q.n}`);
           setText(c.cost, fmtUSD(q.cost));
           toggleClass(c.root, 'can', can);
@@ -1370,7 +1374,7 @@
           <dt>Crews</dt><dd>${fmt(owned)}</dd>
           <dt>Mining</dt><dd>${E.pct(d.buildingShare[id])} of pace · ${rate(d.buildingRate[id])} oz/s</dd>
           <dt>Site limit</dt><dd>${E.pct(d.limit[id])} of pace</dd>
-          <dt>Next crew</dt><dd>+${E.pct(d.nextShare[id])} · ${usdRate(d.nextRate[id] * d.dollarsPerOz)}/s</dd>
+          <dt>Next crew</dt><dd>+${perMin(d.nextRate[id])}</dd>
           <dt>Hire ×${q.n}${q.isMax ? ' (max)' : ''}</dt><dd>${fmtUSD(q.cost)}</dd>
           ${nextTier ? `<dt>Next tier</dt><dd>${esc(nextTier.name)} · ${nextTier.requires.owned} crews</dd>` : ''}
         </dl>`;
