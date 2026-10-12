@@ -14,7 +14,8 @@
   const E = window.Economy;
   const A = window.SVGAssets;
   const M = window.Mining;
-  if (!E || !A || !M) {
+  const FI = window.Fiat;
+  if (!E || !A || !M || !FI) {
     document.body.insertAdjacentHTML('afterbegin', '<p style="padding:20px;font-family:monospace">Failed to load game scripts.</p>');
     return;
   }
@@ -177,6 +178,7 @@
     if (!(dt > 0)) return; // clock went backwards: never un-earn gold
     if (dt > E.MAX_OFFLINE_SECONDS) dt = E.MAX_OFFLINE_SECONDS;
     E.simulate(G.state, dt);
+    if (G.state.era === 'fiat' && G.state.fiat) FI.simulate(G.state.fiat, dt);
     G.state.stats.playTime += dt;
   }
 
@@ -388,7 +390,8 @@
     show(page, { scroll = true } = {}) {
       if (!PAGES.includes(page)) page = 'mine';
       const from = this.current;
-      if (from === 'mine' && page !== 'mine') Mine.leave();
+      if (page === 'territory' && fiat()) page = 'mine';
+      if (from === 'mine' && page !== 'mine') { Mine.leave(); Desk.leave(); }
       this.current = page;
       G.state.settings.tab = page;
       for (const p of PAGES) {
@@ -400,7 +403,7 @@
       }
       document.body.dataset.page = page;
       Tip.hide();
-      if (page === 'mine') Mine.enter();
+      if (page === 'mine') { if (fiat()) Desk.enter(); else Mine.enter(); }
       if (scroll && from !== page && phone()) window.scrollTo(0, 0);
       View.slow();
     },
@@ -1235,6 +1238,266 @@
   };
 
   /* ------------------------------------------------------------------------
+   * The Fiat Era: the Fed Desk, Fed upgrades, the gold market
+   * --------------------------------------------------------------------- */
+  const fiat = () => G.state.era === 'fiat' && !!G.state.fiat;
+  const big = (v) => fmtUSD(v);
+
+  const Desk = {
+    view: null,
+    phase: 'ready',      // ready | running | paused | report
+    tally: 0,
+    report: null,
+    reportAt: 0,
+    init() {
+      this.view = FI.createDeskView($('desk-canvas'), {
+        fmt: (n) => fmt(n, n < 10 ? 2 : 0),
+        onEarn: (g) => { if (!fiat()) return; G.state.fiat.dollars += g; G.state.fiat.earned += g; this.tally += g; },
+        onEnd: (r) => this.end(r),
+        onShock: () => Sound.start(),
+        onIdleTap: () => { if (fiat()) this.act(this.phase === 'paused' ? 'resume' : 'start'); },
+      });
+      this.view.attachPad($('desk-pad'));
+      if (window.ResizeObserver) new ResizeObserver(() => { if (fiat() && Pages.current === 'mine') this.view.resize(); }).observe($('desk-wrap'));
+      window.addEventListener('resize', () => { if (fiat()) requestAnimationFrame(() => this.fitHeight()); });
+      $('desk-overlay').addEventListener('click', (e) => {
+        const b = e.target.closest('[data-act]');
+        if (b) this.act(b.dataset.act);
+        else if (this.phase === 'ready' || this.phase === 'paused') this.act(this.phase === 'ready' ? 'start' : 'resume');
+      });
+      $('gold-quick').addEventListener('click', (e) => { const b = e.target.closest('[data-sell]'); if (b) sellGold(Number(b.dataset.sell), b); });
+      $('gm-sell').addEventListener('click', (e) => { const b = e.target.closest('[data-sell]'); if (b) sellGold(Number(b.dataset.sell), b); });
+      $('fshop').addEventListener('click', (e) => { const b = e.target.closest('[data-fbuy]'); if (b) fiatBuy(b.dataset.fbuy, b); });
+      $('ftimeline').addEventListener('click', (e) => { const b = e.target.closest('[data-fbuy]'); if (b) fiatBuy(b.dataset.fbuy, b); });
+    },
+    syncPad() {
+      const show = matchMedia('(pointer: coarse)').matches && G.state.settings.pad;
+      $('desk-pad').hidden = !show;
+    },
+    fitHeight() {
+      const wrap = $('desk-wrap');
+      if (!fiat() || Pages.current !== 'mine' || !wrap.offsetParent) return;
+      const r = wrap.getBoundingClientRect();
+      const small = phone();
+      const bar = small ? $('tabs').offsetHeight : (document.querySelector('.statusbar') || {}).offsetHeight || 0;
+      const pad = $('desk-pad').hidden ? 0 : $('desk-pad').offsetHeight + 8;
+      const h = Math.round(clamp(window.innerHeight - (r.top + window.scrollY) - bar - pad - (small ? 10 : 14), small ? 260 : 360, 760));
+      if (Math.abs(h - r.height) > 2 && !this.view.running) wrap.style.height = `${h}px`;
+    },
+    enter() {
+      this.syncPad();
+      this.fitHeight();
+      requestAnimationFrame(() => { this.view.resize(); this.renderOverlay(); });
+    },
+    leave() { if (this.phase === 'running') this.pause(); },
+    act(a) {
+      if (a === 'start') this.start();
+      else if (a === 'resume') this.resume();
+      else if (a === 'upgrades') Pages.show('upgrades');
+    },
+    start() {
+      if (this.view.running || !fiat()) return;
+      if (this.phase === 'report' && performance.now() - this.reportAt < 600) return;
+      Sound.ensure();
+      this.tally = 0;
+      this.view.resize();
+      this.view.start(FI.stats(G.state.fiat));
+      this.phase = 'running';
+      Sound.start();
+      this.renderOverlay();
+      try { $('desk-canvas').focus({ preventScroll: true }); } catch (_) { /* ignore */ }
+    },
+    pause() { if (!this.view.running) return; this.view.paused = true; this.phase = 'paused'; this.renderOverlay(); },
+    resume() { if (this.phase !== 'paused') return; this.view.paused = false; this.phase = 'running'; this.renderOverlay(); },
+    end(r) {
+      const f = G.state.fiat;
+      f.sessions += 1;
+      const record = r.earned > f.bestSession && f.bestSession > 0;
+      f.bestSession = Math.max(f.bestSession, r.earned);
+      this.report = Object.assign({}, r, { record, no: f.sessions });
+      this.phase = 'report';
+      this.reportAt = performance.now();
+      Sound.shiftEnd();
+      this.renderOverlay();
+      View.slow();
+    },
+    frame(dt) {
+      if (Pages.current !== 'mine' || document.hidden) return;
+      this.view.frame(dt);
+      const s = this.view.session;
+      const st = FI.stats(G.state.fiat);
+      const dur = s ? s.st.duration : st.duration;
+      const left = s && (this.view.running || this.phase === 'paused') ? Math.max(0, dur - s.t) : this.phase === 'report' ? 0 : dur;
+      setText($('desk-time'), `${left.toFixed(1)}s`);
+      setWidth($('desk-time-fill'), left / dur);
+      setText($('desk-earned'), this.phase === 'ready' ? `${big(st.base)}/s base` : `+${big(this.tally)}`);
+    },
+    renderOverlay() {
+      const el = $('desk-overlay');
+      let html = '';
+      if (this.phase === 'ready') {
+        const first = G.state.fiat.sessions === 0;
+        const touch = matchMedia('(pointer: coarse)').matches;
+        html = `<div class="mo-card">
+          <div class="mo-kicker">FOMC MEETING ${G.state.fiat.sessions + 1}</div>
+          <h3>${first ? 'Your first rate decision' : 'The committee is seated'}</h3>
+          <p>${touch ? 'Drag up on the pad to raise rates, down to cut them.' : 'Drag up on the chart (or press ↑/↓) to raise or cut rates.'} Keep <b>inflation inside the 1–3% band</b> to build a combo on everything the economy earns you. Raise rates to cool it, cut them to warm it up, and watch for shocks.</p>
+          <div class="mo-stats"><span>${FI.stats(G.state.fiat).duration}s session</span><span>combo up to ×${FI.stats(G.state.fiat).comboMax.toFixed(1)}</span></div>
+          <button type="button" class="btn btn-primary btn-big" data-act="start">${A.uiIcon('play')}Open the session</button>
+        </div>`;
+      } else if (this.phase === 'paused') {
+        html = `<div class="mo-card"><div class="mo-kicker">SESSION PAUSED</div><h3>The committee waits</h3><button type="button" class="btn btn-primary btn-big" data-act="resume">${A.uiIcon('play')}Resume</button></div>`;
+      } else if (this.phase === 'report' && this.report) {
+        const r = this.report;
+        html = `<div class="mo-card report">
+          <div class="mo-kicker">MINUTES OF MEETING ${r.no}</div>
+          <div class="mo-big">+${esc(big(r.earned))}</div>
+          <div class="mo-sub">earned in ${r.duration}s at the desk</div>
+          <dl class="mo-grid">
+            <div><dt>On target</dt><dd>${r.inBand.toFixed(1)}s</dd></div>
+            <div><dt>Best combo</dt><dd>×${r.bestCombo.toFixed(1)}</dd></div>
+          </dl>
+          ${r.record ? `<div class="mo-flag">${A.uiIcon('spark')}New record session</div>` : ''}
+          <div class="mo-actions">
+            <button type="button" class="btn btn-primary btn-big" data-act="start">${A.uiIcon('play')}Next session</button>
+            <button type="button" class="btn" data-act="upgrades">Upgrades</button>
+          </div>
+        </div>`;
+      }
+      el.hidden = !html;
+      setHTML(el, html);
+      const lock = this.phase === 'running' && phone();
+      if (lock && !document.documentElement.classList.contains('mine-lock')) window.scrollTo(0, 0);
+      toggleClass(document.documentElement, 'mine-lock', lock);
+    },
+    renderSide() {
+      const f = G.state.fiat, st = FI.stats(f);
+      const rows = [
+        ['Base income', `${big(st.base)}/s`],
+        ['Session', `${st.duration}s`],
+        ['Combo up to', `×${st.comboMax.toFixed(1)}`],
+        ['Shock strength', `${Math.round(st.shock * 100)}%`],
+        ['Highest rate', `${st.maxRate}%`],
+        ['Credibility', `${f.credibility} · income ×${(1 + 0.1 * f.credibility).toFixed(1)}`],
+      ];
+      setHTML($('desk-stats'), rows.map(([k, v]) => `<div class="stat-line"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join(''));
+      setHTML($('gold-quick'), `<div class="gm-quick"><div>Gold <b>$${f.goldPrice.toFixed(2)}</b>/oz · vault <b>${fmt(f.vault, 1)} oz</b></div><div>Worth <b>${big(f.vault * f.goldPrice)}</b></div>
+        <div class="opt-row"><button type="button" class="btn" data-sell="0.25"${f.vault > 0 ? '' : ' disabled'}>Sell 25%</button><button type="button" class="btn" data-sell="1"${f.vault > 0 ? '' : ' disabled'}>Sell all</button></div></div>`);
+      setText($('desk-year'), String(Math.floor(FI.latest(f).year)));
+    },
+  };
+
+  function sellGold(share, el) {
+    const f = G.state.fiat;
+    const got = FI.sellGold(f, share);
+    if (!(got > 0)) { deny(el); return; }
+    Sound.buy(true);
+    toast({ kicker: 'GOLD SOLD', title: `+${big(got)}`, text: `at $${f.goldPrice.toFixed(2)} an ounce. ${f.vault > 0 ? `${fmt(f.vault, 1)} oz still in the vault.` : 'The vault is empty.'}`, icon: A.uiIcon('coin'), timeout: 3500 });
+    View.slow();
+  }
+
+  function fiatBuy(id, el) {
+    const f = G.state.fiat;
+    const res = FI.buy(f, id);
+    if (!res.ok) { deny(el); return; }
+    if (res.history) {
+      const h = res.history;
+      addLog(h.title, plain(h.text), 'milestone', Math.floor(h.year));
+      toast({ kicker: `FIAT HISTORY · ${Math.floor(h.year)}`, title: h.title, text: `${plain(h.text)} Gold heads toward $${h.gold}/oz.`, year: Math.floor(h.year), timeout: 7000 });
+      Sound.chime();
+      View.flashKPI('kpi-date-wrap');
+    } else Sound.buy(false);
+    if (el) restartAnim(el.closest('.scard, .tl-item') || el, 'bought');
+    View.slow();
+  }
+
+  const FiatView = {
+    kpis() {
+      const f = G.state.fiat;
+      setText($('kpi-dollars'), big(f.dollars));
+      setText($('kpi-reserves'), oz(f.vault));
+      setText($('mini-dollars'), big(f.dollars));
+      setText($('mini-reserves'), oz(f.vault));
+      setText($('kpi-rate'), `$${f.goldPrice.toFixed(2)}/oz`);
+      setText($('kpi-crews'), String(f.credibility));
+    },
+    slow() {
+      const f = G.state.fiat;
+      const h = FI.latest(f);
+      setText($('kpi-date'), E.dateLabel(h.year));
+      const labels = document.querySelectorAll('.kpi .kpi-label');
+      if (labels[3]) setText(labels[3], 'Gold price');
+      if (labels[4]) setText(labels[4], 'Credibility');
+      const nx = FI.next(f);
+      const canBuy = FI.ITEMS.some((it) => FI.level(f, it.id) < it.max && f.dollars >= FI.levelCost(it, FI.level(f, it.id))) || (nx && f.dollars >= nx.cost);
+      $('badge-upgrades').hidden = !canBuy;
+      setText($('badge-upgrades'), '!');
+      $('badge-treasury').hidden = !(nx && f.dollars >= nx.cost);
+      setText($('badge-treasury'), '!');
+      if (Pages.current === 'mine') Desk.renderSide();
+      else if (Pages.current === 'upgrades') this.shop();
+      else if (Pages.current === 'treasury') this.treasury();
+    },
+    shop() {
+      const f = G.state.fiat;
+      const nx = FI.next(f);
+      const cards = FI.ITEMS.map((it) => {
+        const l = FI.level(f, it.id), maxed = l >= it.max, cost = maxed ? 0 : FI.levelCost(it, l);
+        const can = !maxed && f.dollars >= cost;
+        return `<article class="scard${can ? ' can' : ''}" data-id="${it.id}"><div class="scard-ico">${A.fiatIcon(it.icon)}</div>
+          <div class="scard-main"><div class="scard-top"><h4>${esc(it.name)}</h4><span class="scard-lv">LV ${l} / ${it.max}</span></div>
+          <div class="scard-effect">${esc(maxed ? it.show(it.value(l)) : `${it.show(it.value(l))} → ${it.show(it.value(l + 1))}`)}</div>
+          <p class="scard-desc">${rich(it.desc)}</p></div>
+          ${maxed ? '<div class="scard-buy locked"><span>MAX</span></div>' : `<button type="button" class="scard-buy" data-fbuy="${it.id}" style="--p:${(clamp(f.dollars / cost, 0, 1) * 100).toFixed(1)}%"><span class="scard-cost">${esc(big(cost))}</span><span class="scard-qty">×1</span></button>`}
+        </article>`;
+      });
+      if (nx) {
+        const can = f.dollars >= nx.cost;
+        cards.push(`<article class="scard charter${can ? ' can' : ''}" data-id="${nx.id}"><div class="scard-ico">${A.picto('scroll')}</div>
+          <div class="scard-main"><div class="scard-top"><h4>${esc(nx.title)}</h4><span class="scard-lv">${Math.floor(nx.year)}</span></div>
+          <div class="scard-effect">Gold heads to $${nx.gold}/oz${nx.effects ? ` · ${esc(fiatEffects(nx))}` : ''}</div>
+          <p class="scard-desc">${rich(nx.text)}</p></div>
+          <button type="button" class="scard-buy" data-fbuy="${nx.id}" style="--p:${(clamp(f.dollars / nx.cost, 0, 1) * 100).toFixed(1)}%"><span class="scard-cost">${esc(big(nx.cost))}</span><span class="scard-qty">SIGN</span></button></article>`);
+      }
+      setHTML($('fshop'), `<section class="shop-cat"><div class="shop-grid">${cards.join('')}</div></section>`);
+    },
+    treasury() {
+      const f = G.state.fiat;
+      setText($('gm-price'), `$${f.goldPrice.toFixed(2)}`);
+      const h = FI.latest(f);
+      setHTML($('gm-note'), rich(`Was $35.00 under [[bretton-woods|Bretton Woods]]. Now it drifts toward $${h.gold} (${h.title}); each step in fiat history moves it.`));
+      const rows = [
+        ['Vault gold', oz(f.vault)],
+        ['Worth today', big(f.vault * f.goldPrice)],
+        ['Worth at the old $35', big(f.vault * 35)],
+        ['Gold sold so far', oz(f.sold)],
+        ['Highest gold price', `$${f.peakGold.toFixed(2)}`],
+      ];
+      setHTML($('gm-stats'), rows.map(([k, v]) => `<div class="stat-line"><dt>${esc(k)}</dt><dd>${esc(v)}</dd></div>`).join(''));
+      setHTML($('gm-sell'), `<button type="button" class="btn" data-sell="0.1"${f.vault > 0 ? '' : ' disabled'}>Sell 10%</button><button type="button" class="btn" data-sell="0.5"${f.vault > 0 ? '' : ' disabled'}>Sell half</button><button type="button" class="btn btn-primary" data-sell="1"${f.vault > 0 ? '' : ' disabled'}>Sell all</button>`);
+      const nx = FI.next(f);
+      const items = FI.HISTORY.map((x) => {
+        if (f.charters[x.id]) return `<li class="tl-item done"><span class="tl-year">${Math.floor(x.year)}</span><span class="tl-title">${esc(x.title)}</span>${A.uiIcon('check')}</li>`;
+        if (x === nx) return `<li class="tl-item next"><span class="tl-year">${Math.floor(x.year)}</span><div class="tl-body"><span class="tl-title">${esc(x.title)}</span><p>${rich(x.text)}</p>
+          <div class="tl-effects"><span>Gold → $${x.gold}/oz</span>${x.effects ? `<span>${esc(fiatEffects(x))}</span>` : ''}</div>
+          <button type="button" class="btn${f.dollars >= x.cost ? ' btn-primary' : ''} tl-sign" data-fbuy="${x.id}">${A.uiIcon('spark')}Sign · ${esc(big(x.cost))}</button></div></li>`;
+        return `<li class="tl-item future"><span class="tl-year">${Math.floor(x.year)}</span><span class="tl-title">${esc(x.title)}</span></li>`;
+      }).join('');
+      setHTML($('ftimeline'), items);
+      setText($('fhist-count'), `${Object.keys(f.charters).length} / ${FI.HISTORY.length}`);
+    },
+  };
+
+  function fiatEffects(h) {
+    const e = h.effects || {}, out = [];
+    if (e.base) out.push(`income ×${e.base}`);
+    if (e.shocks) out.push(`shocks ×${e.shocks}`);
+    if (e.maxRate) out.push(`rates up to ${e.maxRate}%`);
+    if (e.spiral) out.push('spirals easier to break');
+    return out.join(' · ');
+  }
+
+  /* ------------------------------------------------------------------------
    * Wire ticker
    * --------------------------------------------------------------------- */
   const Ticker = {
@@ -1610,6 +1873,7 @@
       this.backdrop.hidden = false;
       Tip.hide();
       if (Mine.phase === 'running') Mine.pause();
+      if (Desk.phase === 'running') Desk.pause();
       if (o.onOpen) o.onOpen(this.box);
       const focusEl = this.box.querySelector('[autofocus]') || this.box.querySelector('.modal-actions .btn-primary') || this.box.querySelector('.modal-actions .btn') || x;
       if (focusEl) focusEl.focus();
@@ -1766,6 +2030,7 @@
 
     /* ---- per-frame: cheap text updates ---- */
     frame() {
+      if (fiat()) { FiatView.kpis(); return; }
       const s = G.state, d = G.d;
       setText($('kpi-dollars'), fmtUSD(s.dollars));
       setText($('kpi-reserves'), oz(s.run.reserves));
@@ -1777,6 +2042,11 @@
     /* ---- 5 Hz: structure, affordability, the visible page ---- */
     slow() {
       const s = G.state, d = G.d;
+      if (fiat()) {
+        FiatView.slow();
+        Tip.refresh();
+        return;
+      }
       setText($('kpi-date'), E.dateLabel(d.year));
       setText($('scene-date'), E.dateLabel(d.year));
       setText($('kpi-rate'), `${fmtUSD(d.dollarsPerOz)}/oz`);
@@ -1883,6 +2153,7 @@
     if (document.hidden) {
       catchUp();
       if (Mine.phase === 'running') Mine.pause();
+      if (Desk.phase === 'running') Desk.pause();
       G.away = { at: Date.now(), reserves: G.state.run.reserves, dollars: G.state.dollars, rate: G.d ? G.d.siteRate : 0 };
       save();
       return;
@@ -1905,6 +2176,7 @@
     document.body.classList.toggle('reduce-motion', st.motion === 'reduced');
     document.body.dataset.era = G.state.era;
     if (Mine.view) { Mine.view.setReduced(reducedMotion()); Mine.view.refreshTheme(); Mine.view.setLift(st.lift); Mine.syncPad(); }
+    if (Desk.view) Desk.syncPad();
     Debug.sync();
   }
 
@@ -1997,6 +2269,7 @@
   /** Replace the running state (import / reset) and rebuild every view. */
   function loadState(state) {
     G.state = state;
+    if (G.state.era === 'fiat') G.state.fiat = FI.sanitize(G.state.fiat, G.state.prestige.credibility);
     G.lastSim = Date.now();
     applySettings();
     refresh();
@@ -2081,13 +2354,18 @@
 
   function doSever(forced) {
     const year = Math.floor(G.d.year);
+    const vault = G.state.run.reserves;
     Mine.view.abort();
     const cred = E.sever(G.state, forced);
+    G.state.era = 'fiat';
+    G.state.fiat = FI.createFiat(vault, G.state.prestige.credibility);
     Mine.phase = 'ready';
     Mine.report = null;
+    Desk.phase = 'ready';
     G.lastSim = Date.now();
     refresh();
-    addLog(forced ? 'Run on the gold window' : 'The Nixon Shock', `The dollar floats. +${cred} Credibility; the Mint now pays ×${G.d.credMult.toFixed(1)}.`, 'milestone', 1971);
+    applySettings();
+    addLog(forced ? 'Run on the gold window' : 'The Nixon Shock', `The dollar floats. +${cred} Credibility. ${oz(vault)} of gold now trades at the market price.`, 'milestone', 1971);
     View.resetAll();
     Ticker.init();
     Spark.reset();
@@ -2101,9 +2379,9 @@
       body: `${forced ? '<p>Foreign central banks drained the vault below a quarter of its peak, and the window had to close in a panic. Credibility suffers: half the payout.</p>' : ''}
         <p class="note">"I have directed Secretary Connally to suspend temporarily the convertibility of the American dollar into gold." — President Nixon, August 15, 1971</p>
         <div class="big-figure">+${cred} <small>Credibility</small></div>
-        <p>You hold <b>${G.state.prestige.credibility} Central Bank Credibility</b>: the Mint now pays <b>×${G.d.credMult.toFixed(1)}</b>. A new gold rush begins at Sutter's Mill, and this time history moves faster.</p>
-        <p class="muted">The Fiat Era itself, with printing money, interest rates and bank lending, is the next chapter in development. Your Credibility will carry into it.</p>`,
-      actions: [{ label: 'Back to 1848', primary: true }],
+        <p><b>Gold floats.</b> Your vault of ${esc(oz(vault))} was worth ${esc(fmtUSD(vault * 35))} at the old $35. From today it trades at the market price, and every step in fiat history pushes that price, all the way to $850 in 1980. Sell when you choose (Treasury page).</p>
+        <p><b>The Fed Desk opens.</b> Set interest rates, keep inflation in the 1–3% band, ride out the shocks. Your Credibility (${G.state.prestige.credibility}) keeps inflation calmer and multiplies what the desk earns.</p>`,
+      actions: [{ label: 'Take the chair', primary: true }],
     });
     save();
   }
@@ -2145,7 +2423,6 @@
       if (Mine.view.running && s) s.lodeAt = s.t;
     },
     warp(seconds) { showWelcomeBack(runOffline(seconds)); },
-    era() { G.state.era = G.state.era === 'gold' ? 'fiat' : 'gold'; applySettings(); },
     el: null,
     /** Show the panel when ?debug is in the URL or the Developer tools setting is on. */
     sync() {
@@ -2164,7 +2441,7 @@
         ['+$1K', () => this.cash(1e3)], ['+$1M', () => this.cash(1e6)], ['+$1B', () => this.cash(1e9)], ['+$1T', () => this.cash(1e12)],
         ['+1K oz', () => this.gold(1e3)], ['+1M oz', () => this.gold(1e6)], ['sign next', () => this.sign()], ['permits', () => this.permits()],
         ['+10 crews', () => this.crews(10)], ['end shift', () => this.endShift()], ['lode', () => this.lode()],
-        ['warp 1h', () => this.warp(3600)], ['to 1968', () => { for (let i = 0; i < 22; i++) this.sign(); G.state.run.reserves = Math.max(G.state.run.reserves, 2e8); G.state.run.peak = G.state.run.reserves; }], ['vault −50%', () => { G.state.run.reserves *= 0.5; }], ['fiat theme', () => this.era()],
+        ['warp 1h', () => this.warp(3600)], ['to 1968', () => { for (let i = 0; i < 22; i++) this.sign(); G.state.run.reserves = Math.max(G.state.run.reserves, 2e8); G.state.run.peak = G.state.run.reserves; }], ['vault −50%', () => { G.state.run.reserves *= 0.5; }], ['to fiat era', () => { if (fiat()) return; for (let i = 0; i < 22; i++) this.sign(); G.state.run.reserves = Math.max(G.state.run.reserves, 2e8); G.state.run.peak = G.state.run.reserves; doSever(false); }], ['+$10B fiat', () => { if (fiat()) G.state.fiat.dollars += 1e10; }],
       ];
       el.innerHTML = '<button type="button" class="debug-head" aria-expanded="true"><span>DEBUG</span><span class="debug-caret" aria-hidden="true">▾</span></button><div class="debug-body"></div>';
       const head = el.querySelector('.debug-head');
@@ -2191,8 +2468,8 @@
     G.lastFrame = ts;
     catchUp();
     refresh();
-    checkCrisis();
-    Mine.frame(dt);
+    if (fiat()) Desk.frame(dt);
+    else { checkCrisis(); Mine.frame(dt); }
     View.frame();
     Ticker.update(dt);
     G.slowAcc += dt;
@@ -2209,6 +2486,7 @@
     const problem = raw && raw.error;
     G.state = E.migrate(problem ? null : raw && raw.data, now);
     if (raw && raw.legacy) Store.archiveV1(raw.text);
+    if (G.state.era === 'fiat') G.state.fiat = FI.sanitize(G.state.fiat, G.state.prestige.credibility);
     G.lastSim = now;
     applySettings();
     refresh();
@@ -2221,6 +2499,7 @@
     Shop.init();
     Sites.init();
     Treasury.init();
+    Desk.init();
 
     let offline = null;
     if (raw && !problem && !raw.legacy) {

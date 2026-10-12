@@ -24,12 +24,12 @@ An incremental game about the history of the U.S. dollar, from gold dust at Sutt
    - Each site's crews approach that site's limit with diminishing returns.
    - Tiers raise the limit and evolve the artwork.
 5. **Treasury page.** It shows the Mint's formula, the history timeline, the gold window and the locked Fiat Era preview.
-6. **The gold drain and the Nixon Shock.** From Bretton Woods (1944), foreign central banks trade dollars for your gold, and the vault drains a share of itself every second. The drain speeds up in 1945 and 1968.
-   - **Opening the window:** once the 1968 charter is signed, you can close the gold window from the Treasury page.
-   - **Credibility:** it grows with the gold left in the vault and with how long you defended the peg (up to ×2 after 20 minutes).
-   - **Crisis:** if the vault falls below a quarter of its peak, a run closes the window for you at half the payout.
-   - **Closing the window:** this banks Central Bank Credibility. Each point makes the Mint pay 10% more, permanently. Then the gold era restarts at 1848.
-   - **Fiat Era:** the Fiat Era proper is the next phase.
+6. **The gold drain and the Nixon Shock.** From Bretton Woods (1944), foreign central banks trade dollars for your gold, and the vault drains a share of itself every second, faster in 1945 and 1968. Once the 1968 charter is signed you can close the gold window (Treasury page). Credibility grows with the gold left in the vault and with how long you defended the peg (up to ×2 after 20 minutes); if the vault falls below a quarter of its peak, a run closes the window for you at half the payout.
+7. **The Fiat Era (first playable slice).** Closing the window banks Credibility and opens the Fiat Era:
+   - **Gold floats.** The vault comes with you as an asset whose market price follows fiat history: $43 in 1971, $97 with the oil embargo, $154 with the petrodollar deal, $307 under Volcker, $850 at the 1980 peak. Sell any share on the Treasury page whenever you like.
+   - **The Fed Desk** replaces the rock face: a timed session where you drag to set the interest rate. Growth and inflation respond with momentum and get hit by shocks; keeping inflation in the 1–3% band builds a combo on the desk's income, and past 6% inflation starts to spiral. Credibility calms the spiral and multiplies income.
+   - **Fed upgrades** (printing presses, dual-mandate staff, forward guidance, longer meetings) and **fiat history** (1973 oil embargo to 1987 Black Monday) on the Upgrades and Treasury pages.
+   - Developer tools has **to fiat era** for testing it without playing through the gold era.
 
 ## Run it
 
@@ -62,6 +62,7 @@ Claude artifacts need one self-contained file. `python3 tools/build-artifact.py 
 | File | Responsibility |
 |---|---|
 | `economy.js` | Pure model with no DOM: <ul><li>sites, maps, charters and the shop items</li><li>the Mint formula and `derive()`</li><li>crew simulation</li><li>number formatting and save migration</li></ul> Loads in Node for tests and balancing. |
+| `fiat.js` | The Fiat Era: the floating gold price, Fed upgrades and history, and the Fed Desk session model with its canvas chart. |
 | `mining.js` | The shift: <ul><li>rock spawning, strikes, crits, dynamite chains, the drill and the Mother Lode, as a pure model</li><li>a canvas view that turns mouse and touch input into swings</li></ul> |
 | `svgAssets.js` | All vector art as markup strings: <ul><li>8 sites × 6 visual tiers</li><li>the territory panorama</li><li>shop pictograms and icons</li></ul> |
 | `gameEngine.js` | <ul><li>the rAF loop and wall-clock catch-up</li><li>persistence</li><li>the four page controllers</li><li>tooltips, ticker, toasts, modals, sound and developer tools</li></ul> |

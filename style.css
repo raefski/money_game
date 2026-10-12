@@ -534,6 +534,16 @@ button:focus-visible, [tabindex]:focus-visible, summary:focus-visible, input:foc
 .mo-foreman .picto { width: 22px; height: 22px; }
 .mo-foreman b { color: var(--accent); font-family: var(--font-mono); }
 
+/* Era switch: gold-era and fiat-era parts of the pages */
+body[data-era="fiat"] .gold-only, body:not([data-era="fiat"]) .fiat-only { display: none !important; }
+#desk-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: ns-resize; touch-action: manipulation; outline: none; }
+#desk-canvas.live { touch-action: none; }
+.desk-wrap { background: #050c0b; }
+.gm-sell { margin-top: 10px; }
+.gm-sell .btn { flex: 1; }
+.gm-quick { display: grid; gap: 6px; font-size: 12.5px; color: var(--text-2); }
+.gm-quick b { color: var(--accent); font-family: var(--font-mono); }
+
 /* Touch control pad under the rock face */
 .mine-pad {
   position: relative;

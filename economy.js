@@ -595,6 +595,7 @@
       dollars: 0,
       run: emptyRun(now),
       prestige: { credibility: 0, resets: 0 },
+      fiat: null,           // the Fiat Era's state (fiat.js), once the gold window has closed
       stats: { lifetimeGold: 0, lifetimeDollars: 0, totalShifts: 0, totalOre: 0, playTime: 0, createdAt: now, bestShift: 0, bestStrike: 0, lodes: 0 },
       settings: { notation: 'suffix', motion: 'full', sound: true, buyAmount: 1, shopAmount: 1, shopFilter: 'all', lift: 88, pad: true, debug: false, map: null, tab: 'mine' },
       flags: { introSeen: false, fromV1: false },
@@ -635,7 +636,8 @@
     s.settings.pad = se.pad !== false;
     s.settings.map = MAP_BY_ID[se.map] ? se.map : null;
     s.settings.tab = ['mine', 'upgrades', 'territory', 'treasury'].includes(se.tab) ? se.tab : 'mine';
-    s.era = raw.era === 'fiat' ? 'fiat' : 'gold';
+    s.era = raw.era === 'fiat' && raw.fiat && typeof raw.fiat === 'object' ? 'fiat' : 'gold';
+    s.fiat = s.era === 'fiat' ? raw.fiat : null;   // validated by Fiat.sanitize in the engine
     s.dollars = Math.max(0, num(raw.dollars, 0));
     const r = raw.run || {};
     ['reserves', 'minted', 'spent', 'shifts', 'oreBroken', 'shiftGold', 'bestShift', 'bestStrike', 'lodes', 'pace', 'drained', 'peak', 'defended'].forEach((k) => { s.run[k] = Math.max(0, num(r[k], 0)); });

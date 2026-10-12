@@ -50,7 +50,7 @@
     <nav class="tabs" role="tablist" aria-label="Pages" id="tabs">
       <button type="button" role="tab" id="tab-mine" data-page="mine" aria-controls="page-mine"><span class="tab-ico" data-icon="pick"></span><span>Mine</span></button>
       <button type="button" role="tab" id="tab-upgrades" data-page="upgrades" aria-controls="page-upgrades"><span class="tab-ico" data-icon="spark"></span><span>Upgrades</span><b class="tab-badge" id="badge-upgrades" hidden></b></button>
-      <button type="button" role="tab" id="tab-territory" data-page="territory" aria-controls="page-territory"><span class="tab-ico" data-icon="map"></span><span>Territory</span><b class="tab-badge" id="badge-territory" hidden></b></button>
+      <button type="button" role="tab" class="gold-only" id="tab-territory" data-page="territory" aria-controls="page-territory"><span class="tab-ico" data-icon="map"></span><span>Territory</span><b class="tab-badge" id="badge-territory" hidden></b></button>
       <button type="button" role="tab" id="tab-treasury" data-page="treasury" aria-controls="page-treasury"><span class="tab-ico" data-icon="vault"></span><span>Treasury</span><b class="tab-badge" id="badge-treasury" hidden></b></button>
     </nav>
 
@@ -60,7 +60,7 @@
       <!-- ---------- Mine ---------- -->
       <section class="page" id="page-mine" role="tabpanel" aria-labelledby="tab-mine">
         <div class="mine-layout">
-          <div class="panel mine-panel">
+          <div class="panel mine-panel gold-only">
             <header class="panel-head">
               <h2>The Rock Face</h2>
               <span class="tag" id="mine-place">COLOMA, CA</span>
@@ -79,7 +79,7 @@
               <span class="pad-label">Drag to move the pick · hold to swing</span>
             </div>
           </div>
-          <aside class="mine-side">
+          <aside class="mine-side gold-only">
             <div class="panel">
               <header class="panel-head"><h2>Your Pick</h2><span class="spacer"></span><button class="link-btn" type="button" data-goto="upgrades">Upgrades →</button></header>
               <dl class="statlist" id="pick-stats"></dl>
@@ -93,12 +93,36 @@
               <ol class="log" id="log"></ol>
             </div>
           </aside>
+          <div class="panel desk-panel fiat-only">
+            <header class="panel-head"><h2>The Fed Desk</h2><span class="tag" id="desk-year">1971</span></header>
+            <div class="mine-hud" aria-hidden="true">
+              <div class="mine-timer"><span class="meter"><span id="desk-time-fill"></span></span><b id="desk-time">30.0s</b></div>
+              <div class="mine-tally"><b id="desk-earned">$0</b></div>
+            </div>
+            <div class="mine-wrap desk-wrap" id="desk-wrap">
+              <canvas id="desk-canvas" tabindex="0" aria-label="The Fed Desk. Drag up to raise the interest rate and down to cut it; keep inflation inside the 1 to 3 percent band."></canvas>
+              <div class="mine-overlay" id="desk-overlay"></div>
+            </div>
+            <div class="mine-pad" id="desk-pad" hidden aria-label="Rate pad: drag up to raise rates, down to cut them">
+              <span class="pad-label">Drag up to raise rates · down to cut</span>
+            </div>
+          </div>
+          <aside class="mine-side fiat-only">
+            <div class="panel">
+              <header class="panel-head"><h2>Your Fed</h2><span class="spacer"></span><button class="link-btn" type="button" data-goto="upgrades">Upgrades →</button></header>
+              <dl class="statlist" id="desk-stats"></dl>
+            </div>
+            <div class="panel">
+              <header class="panel-head"><h2>Gold Market</h2></header>
+              <div id="gold-quick"></div>
+            </div>
+          </aside>
         </div>
       </section>
 
       <!-- ---------- Upgrades ---------- -->
       <section class="page" id="page-upgrades" role="tabpanel" aria-labelledby="tab-upgrades" hidden>
-        <div class="panel shop-panel">
+        <div class="panel shop-panel gold-only">
           <header class="panel-head">
             <h2>Upgrades</h2>
             <span class="tag" id="shop-count">0 owned</span>
@@ -115,10 +139,14 @@
           <nav class="cat-nav" id="cat-nav" aria-label="Categories"></nav>
           <div class="shop" id="shop"></div>
         </div>
+        <div class="panel shop-panel fiat-only">
+          <header class="panel-head"><h2>Fed Upgrades</h2><span class="tag" id="fshop-count">FIAT ERA</span></header>
+          <div class="shop" id="fshop"></div>
+        </div>
       </section>
 
       <!-- ---------- Territory ---------- -->
-      <section class="page" id="page-territory" role="tabpanel" aria-labelledby="tab-territory" hidden>
+      <section class="page gold-only" id="page-territory" role="tabpanel" aria-labelledby="tab-territory" hidden>
         <div class="territory-layout">
           <div class="panel territory">
             <header class="panel-head">
@@ -158,7 +186,21 @@
       <!-- ---------- Treasury ---------- -->
       <section class="page" id="page-treasury" role="tabpanel" aria-labelledby="tab-treasury" hidden>
         <div class="treasury-layout">
-          <div class="panel mint-panel">
+          <div class="panel mint-panel fiat-only" id="gold-market">
+            <header class="panel-head"><h2>Gold Market</h2><span class="spacer"></span><span class="tag">FREE-FLOATING SINCE 1971</span></header>
+            <div class="mint-hero">
+              <div class="mint-label">Gold trades at</div>
+              <div class="mint-value"><span id="gm-price">$35.00</span><span class="unit">per ounce</span></div>
+              <div class="mint-formula" id="gm-note"></div>
+            </div>
+            <dl class="statlist" id="gm-stats"></dl>
+            <div class="opt-row gm-sell" id="gm-sell"></div>
+          </div>
+          <div class="panel history-panel fiat-only">
+            <header class="panel-head"><h2>Fiat History</h2><span class="spacer"></span><span class="tag" id="fhist-count">1 / 6</span></header>
+            <ol class="timeline" id="ftimeline"></ol>
+          </div>
+          <div class="panel mint-panel gold-only">
             <header class="panel-head"><h2>The Mint</h2><span class="spacer"></span><span class="tag" id="mint-tag">U.S. MINT · SAN FRANCISCO</span></header>
             <div class="mint-hero">
               <div class="mint-label">The Mint pays</div>
@@ -175,11 +217,11 @@
               <div class="spark-foot"><span>−2m</span><span id="spark-range"></span><span>now</span></div>
             </div>
           </div>
-          <div class="panel history-panel">
+          <div class="panel history-panel gold-only">
             <header class="panel-head"><h2>History</h2><span class="spacer"></span><span class="tag" id="history-count">1 / 22</span></header>
             <ol class="timeline" id="timeline"></ol>
           </div>
-          <div class="panel window-panel">
+          <div class="panel window-panel gold-only">
             <header class="panel-head"><h2>The Gold Window</h2><span class="spacer"></span><span class="tag tag-lock" id="window-tag"></span></header>
             <div class="window-body">
               <div id="vault-door"></div>
@@ -218,6 +260,7 @@
 
   <script src="economy.js"></script>
   <script src="mining.js"></script>
+  <script src="fiat.js"></script>
   <script src="svgAssets.js"></script>
   <script src="gameEngine.js"></script>
 </body>
