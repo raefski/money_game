@@ -9,6 +9,7 @@ An incremental game about the history of the U.S. dollar, from gold dust at Sutt
 1. **Mine a shift (Mine page).** It is a timed round at the rock face. Tap or hold, and your pick hits every rock inside its ring. Rock, quartz, nuggets and rich veins break into gold. Sometimes a huge Mother Lode appears.
    - **The mine zooms out as your reach grows.** Timbers, rails and rock strata in the background shrink as you zoom, and coming back to the mine after a reach upgrade plays the zoom-out. Each Bigger Pick level shows more ground with proportionally more rock: from about 18 rocks at the start to over a thousand at full reach (with Richer Ground). The ring keeps growing on screen, just more slowly.
    - **Mother Lodes are bosses.** One arrives every 15 seconds of a shift (sooner with Lucky Lamp), each about 1.3× bigger, 2.4× tougher and 3.8× richer than the last, with its own health bar. They are sized in mine units, so a long reach shrinks them on screen, while long shifts with little reach meet giants.
+   - **Each mine starts on its own ore:** plain rock on the American River, gold pockets on the Comstock, bonanza crystals at Homestake, gold geodes on the Klondike. A tougher mine looks tougher.
    - **Shifts dig deeper as they run, one ore at a time.** A shift starts in plain rock; from 14 s every new rock is gold seam, then gold pockets (28 s), bonanza crystals (42 s), gold geodes (56 s), the heart of the mountain (72 s) and El Dorado (88 s). Each layer is richer and tougher. A base shift is 20 s; Lantern Oil (32 levels, up to 100 s) reaches the deeper layers.
 2. **The Mint pays.** Each ounce goes into the Treasury vault as reserves, and the Mint issues dollars for it at the official price divided by the gold cover:
    - $20.67 an ounce at first.
@@ -91,7 +92,7 @@ Claude artifacts need one self-contained file. `python3 tools/build-artifact.py 
 
 `node tools/balance.js` simulates an efficient player: it holds down, aims at the best cluster with some error, and buys whatever pays back fastest, looking a few levels ahead. `node tools/calibrate.js [scale]` fits the charter prices to a target timeline with that bot and writes them into `economy.js`.
 
-- **Timeline:** the bot signs the 1849 charter at about minute 2, Comstock (1859) at 13, Homestake (1876) at 37, the Federal Reserve Act (1913) at 65, and the Gold Pool's collapse (1968) at about 81 minutes. A person should take 3+ hours.
+- **Timeline:** the bot signs the 1849 charter at about minute 2, Comstock (1859) at 13, Homestake (1876) at 37, the Federal Reserve Act (1913) at 65, and the Gold Pool's collapse (1968) at about 74 minutes. A person should take 3+ hours.
 - **Crews:** they bring in about 8% of income at 15 minutes, 25–35% mid-game and under 40% late. Clicking stays the main source of income.
 
 The tuning levers, all in `economy.js`:

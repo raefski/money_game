@@ -327,14 +327,14 @@
    * (gold). The player can still choose an older field.
    * --------------------------------------------------------------------- */
   const MAPS = [
-    { id: 'california', name: 'American River', place: 'COLOMA, CA', charter: 'c1848', hp: 1, gold: 1, term: 'placer-mining',
+    { id: 'california', name: 'American River', place: 'COLOMA, CA', charter: 'c1848', start: 0, hp: 1, gold: 1, term: 'placer-mining',
       desc: 'Loose gravel and quartz along the river. Easy to break, modest gold.' },
-    { id: 'comstock', name: 'Comstock Lode', place: 'VIRGINIA CITY, NV', charter: 'c1859', hp: 7, gold: 9, term: 'comstock',
-      desc: 'Hard quartz veins deep under Nevada. Tougher rock, far richer ore.' },
-    { id: 'blackhills', name: 'Homestake Lode', place: 'LEAD, SD', charter: 'c1876', hp: 36, gold: 80, term: 'homestake',
-      desc: 'An enormous lode of hard rock in the Black Hills.' },
-    { id: 'klondike', name: 'Klondike Creeks', place: 'DAWSON CITY, YUKON', charter: 'c1897', hp: 220, gold: 650, term: 'klondike',
-      desc: 'Frozen gravel thawed with fires, bursting with nuggets.' },
+    { id: 'comstock', name: 'Comstock Lode', place: 'VIRGINIA CITY, NV', charter: 'c1859', start: 2, hp: 1.5, gold: 1.25, term: 'comstock',
+      desc: 'Hard quartz veins deep under Nevada. The face starts in gold pockets: tougher, far richer ore.' },
+    { id: 'blackhills', name: 'Homestake Lode', place: 'LEAD, SD', charter: 'c1876', start: 3, hp: 3.9, gold: 4.4, term: 'homestake',
+      desc: 'An enormous lode of hard rock in the Black Hills. The face starts in bonanza crystals.' },
+    { id: 'klondike', name: 'Klondike Creeks', place: 'DAWSON CITY, YUKON', charter: 'c1897', start: 4, hp: 12, gold: 15, term: 'klondike',
+      desc: 'Frozen gravel thawed with fires, bursting with gold. The face starts in gold geodes.' },
   ];
   const MAP_BY_ID = Object.fromEntries(MAPS.map((m) => [m.id, m]));
 
@@ -889,6 +889,8 @@
       // (capped near 2,400 rocks so phones stay smooth; past that a longer reach covers more of the face)
       cap: Math.round(val('ground') * Math.min(Math.pow(radius / 34, 1.6), 2400 / val('ground'))),
       respawn: 0.32 * Math.pow(0.92, lv('ground')) / Math.min(Math.pow(radius / 34, 1.6), 2400 / val('ground')),
+      // each mine starts at a richer, tougher ore layer; the rest of its difference is a smaller multiplier
+      startLayer: map.start || 0,
       hpMult: map.hp,
       goldMult: map.gold * yieldMult,
       // Mother Lodes arrive on a schedule (every 15 s, sooner with Lucky Lamp and the Big Bonanza)

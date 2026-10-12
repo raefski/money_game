@@ -36,6 +36,7 @@
     { t: 56, name: 'Gold geodes' }, { t: 72, name: 'Heart of the mountain' }, { t: 88, name: 'El Dorado' },
   ];
   const DEEP = ['seam', 'pocket', 'bonanza', 'geode', 'heart', 'eldorado'];
+  const LAYERS = ['rock'].concat(DEEP);   // ore layers from the surface down
   const BLAST_DAMAGE = 0.5;   // dynamite hits for this share of pick damage
   // Each Mother Lode in a shift is bigger, tougher and richer than the one before.
   const LODE_GROWTH = { r: 1.3, hp: 2.4, gold: 3.8 };
@@ -73,9 +74,10 @@
 
   /** New rock is the ore of the deepest layer this shift has reached. */
   function pickType(s) {
-    let type = 'rock';
-    for (const k of DEEP) if (s.t >= ORES[k].depth) type = k;
-    return type;
+    // the mine sets the starting layer; each depth reached this shift goes one layer further
+    let layer = s.stats.startLayer || 0;
+    for (const k of DEEP) if (s.t >= ORES[k].depth) layer++;
+    return LAYERS[Math.min(layer, LAYERS.length - 1)];
   }
 
   function spawn(s, type, boss) {
@@ -1097,7 +1099,7 @@
     return view;
   }
 
-  const Mining = { AREA, ORES, DEPTHS, PALETTES, PICKS, TOUCH_LIFT, fieldSize, createShift, update, strike, bestAim, simulate, createView };
+  const Mining = { AREA, ORES, LAYERS, DEPTHS, PALETTES, PICKS, TOUCH_LIFT, fieldSize, createShift, update, strike, bestAim, simulate, createView };
   root.Mining = Mining;
   if (typeof module !== 'undefined' && module.exports) module.exports = Mining;
 })(typeof window !== 'undefined' ? window : globalThis);

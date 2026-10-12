@@ -693,7 +693,7 @@
       ];
       if (m.critChance > 0) rows.push(['Crits', `${Math.round(m.critChance * 100)}% · ×${m.critMult.toFixed(1)}`, 'Chance of a critical swing, and how much harder it hits.']);
       rows.push(['Shift', `${m.duration.toFixed(1)}s`, 'Length of each shift. A shift digs deeper as it runs, and new rock becomes the next layer: gold seams after 14 s, pockets after 28 s, bonanza crystals after 42 s, geodes after 56 s, the heart of the mountain after 72 s, El Dorado after 88 s. Lantern Oil makes shifts longer.']);
-      rows.push(['Gold per rock', `×${fmt(m.goldMult, 2)}`, `Assaying, history and this mine (${d.map.name}: ×${d.map.gold} gold, ×${d.map.hp} rock).`]);
+      rows.push(['Gold per rock', `×${fmt(m.goldMult, 2)}`, `Assaying, history and this mine. ${d.map.name} starts in ${layerName(d.map.start)}.`]);
       rows.push(['Mother Lodes', `every ${m.lodeEvery.toFixed(1)}s`, 'Bosses on a schedule: each Mother Lode in a shift is bigger, tougher and richer than the one before. Longer shifts meet more of them; a bigger reach makes them look smaller.']);
       if (m.dynamite) rows.push(['Dynamite', `${Math.round(m.dynamite * 100)}% blast`, 'Chance that broken rock explodes into its neighbours.']);
       if (m.drill) rows.push(['Rock drill', `${(m.drill / m.swing).toFixed(1)} hits/s`, 'Strikes on its own wherever the ring rests.']);
@@ -705,6 +705,7 @@
     },
   };
   const P_GOLD = '#f5c542';
+  const layerName = (i) => (i ? M.DEPTHS[Math.min(i, M.DEPTHS.length) - 1].name.toLowerCase() : 'plain rock');
 
   /** The pick as a 40×40 SVG drawing in its current head's colors. */
   function pickArt(tier) {
@@ -1648,7 +1649,7 @@
       const body = `${m.desc} [[${m.term}|Learn more]].`;
       return `<div class="tt-head"><span class="tt-title">${esc(m.name)}</span><span class="tt-tag">${esc(m.place)}</span></div>
         <div class="tt-body">${rich(body, false)}</div>
-        <dl class="tt-stats"><dt>Rock strength</dt><dd>×${m.hp}</dd><dt>Gold per rock</dt><dd>×${m.gold}</dd></dl>${glossFooter(body)}`;
+        <dl class="tt-stats"><dt>Starts in</dt><dd>${esc(layerName(m.start))}</dd><dt>Rock strength</dt><dd>×${fmt(m.hp * M.ORES[M.LAYERS[m.start || 0]].hp / M.ORES.rock.hp, 1)}</dd><dt>Gold per rock</dt><dd>×${fmt(m.gold * M.ORES[M.LAYERS[m.start || 0]].gold / M.ORES.rock.gold, 1)}</dd></dl>${glossFooter(body)}`;
     },
     text(key, el) {
       const fn = TEXT_TIPS[key];
