@@ -545,12 +545,7 @@
         this.phase = 'running';
         this.renderOverlay();
       } else if (ev.type === 'lode') {
-        const b = $('mine-banner');
-        b.textContent = 'MOTHER LODE!';
-        b.hidden = false;
-        restartAnim(b, 'show');
-        this.bannerT = 2.2;
-        Sound.lode();
+        Sound.lode();   // no banner: the boss carries its own label and health bar
       } else if (ev.type === 'end') {
         const r = ev.result;
         const records = E.recordShift(G.state, r);
@@ -699,7 +694,7 @@
       if (m.critChance > 0) rows.push(['Crits', `${Math.round(m.critChance * 100)}% · ×${m.critMult.toFixed(1)}`, 'Chance of a critical swing, and how much harder it hits.']);
       rows.push(['Shift', `${m.duration.toFixed(1)}s`, 'Length of each shift. A shift digs deeper as it runs, and new rock becomes the next layer: gold seams after 14 s, pockets after 28 s, bonanza crystals after 42 s, geodes after 56 s, the heart of the mountain after 72 s, El Dorado after 88 s. Lantern Oil makes shifts longer.']);
       rows.push(['Gold per rock', `×${fmt(m.goldMult, 2)}`, `Assaying, history and this mine (${d.map.name}: ×${d.map.gold} gold, ×${d.map.hp} rock).`]);
-      rows.push(['Mother Lode', `${Math.round(m.lodeChance * 100)}% a shift`, 'Chance that a huge glowing lode appears during a shift.']);
+      rows.push(['Mother Lodes', `every ${m.lodeEvery.toFixed(1)}s`, 'Bosses on a schedule: each Mother Lode in a shift is bigger, tougher and richer than the one before. Longer shifts meet more of them; a bigger reach makes them look smaller.']);
       if (m.dynamite) rows.push(['Dynamite', `${Math.round(m.dynamite * 100)}% blast`, 'Chance that broken rock explodes into its neighbours.']);
       if (m.drill) rows.push(['Rock drill', `${(m.drill / m.swing).toFixed(1)} hits/s`, 'Strikes on its own wherever the ring rests.']);
       rows.push(['Your pace', `${rate(d.pace)} oz/s`, 'Gold per second over your recent shifts, not counting Mother Lodes. Crews mine a share of it.']);
@@ -2420,7 +2415,7 @@
     },
     lode() {
       const s = Mine.view.shift;
-      if (Mine.view.running && s) s.lodeAt = s.t;
+      if (Mine.view.running && s) s.lodeAt = s.t;   // the next scheduled Mother Lode, now
     },
     warp(seconds) { showWelcomeBack(runOffline(seconds)); },
     el: null,

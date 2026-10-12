@@ -361,7 +361,7 @@
       text: "Alfred Nobel's 1867 patent: far more stable, and far stronger, than black powder." },
     { id: 'c1869', year: 1869.36, title: 'The Golden Spike', cost: 280000000, reserves: 34000, effects: { goldMult: 0.25 },
       text: 'May 10, 1869: the Transcontinental Railroad is complete and [[transaction-costs|transaction costs]] collapse.' },
-    { id: 'c1873', year: 1873.8, title: 'The Big Bonanza', cost: 1600000000, reserves: 53000, effects: { lode: 0.1 },
+    { id: 'c1873', year: 1873.8, title: 'The Big Bonanza', cost: 1600000000, reserves: 53000, effects: { lode: 0.15 },
       text: 'Comstock miners strike the "Big Bonanza," one of the richest ore bodies ever found.' },
     { id: 'c1876', year: 1876.3, title: 'The Homestake Lode', cost: 10000000000, reserves: 91000, effects: { map: 'blackhills' },
       text: 'Gold in the Black Hills: the [[homestake|Homestake Mine]] opens, and will become the deepest in North America.' },
@@ -447,8 +447,8 @@
       value: (l) => Math.pow(1.15, l), show: (v) => `×${fmt(v, 2)} gold per rock`,
       desc: 'Careful [[assay|assaying]] recovers more fine gold from every rock.' },
     { id: 'luck', cat: 'shift', name: 'Lucky Lamp', icon: 'clover', base: 71000, growth: 2, max: 10, requires: { charter: 'c1873' },
-      value: (l) => 0.06 * l, show: (v) => `+${Math.round(v * 100)}% Mother Lode chance`,
-      desc: 'Better odds that a Mother Lode shows up during a shift.' },
+      value: (l) => Math.pow(0.93, l), show: (v) => `Mother Lodes every ${(15 * v).toFixed(1)}s`,
+      desc: 'Mother Lodes are bosses: one arrives every 15 seconds of a shift, each bigger, tougher and richer than the last. A brighter lamp brings them sooner, so a shift meets more of them.' },
     { id: 'dynamite', cat: 'tools', name: 'Dynamite Bundles', icon: 'dynamite', base: 130000, growth: 2.3, max: 20, requires: { item: 'tool_dynamite' },
       value: (l) => 0.1 + 0.04 * l, show: (v) => `${Math.round(v * 100)}% blast chance, blasts ${(4 + (v - 0.1) * 5).toFixed(1)}× a rock`,
       desc: 'Bigger bundles: a broken rock is more likely to explode, and each blast reaches further, so chains run through the face like a fission reaction.' },
@@ -797,7 +797,7 @@
     if (e.goldMult) out.push(`All gold +${Math.round(e.goldMult * 100)}%`);
     if (e.siteMult) out.push(`Crew output +${Math.round(e.siteMult * 100)}%`);
     if (e.oreMult) out.push(`Rock yields ×${e.oreMult}`);
-    if (e.lode) out.push(`Mother Lode chance +${Math.round(e.lode * 100)}%`);
+    if (e.lode) out.push(`Mother Lodes come ${Math.round(e.lode * 100)}% sooner`);
     if (e.vaultMult) out.push(`Treasury Vault ×${e.vaultMult}`);
     if (e.price) out.push(`Mint price $${e.price.toFixed(2)}/oz`);
     if (e.cover) out.push(`Gold cover ${Math.round(e.cover * 100)}%`);
@@ -891,7 +891,9 @@
       respawn: 0.32 * Math.pow(0.92, lv('ground')) / Math.min(Math.pow(radius / 34, 1.6), 2400 / val('ground')),
       hpMult: map.hp,
       goldMult: map.gold * yieldMult,
-      lodeChance: Math.min(0.9, BASE_LODE_CHANCE + val('luck') + lodeBonus),
+      // Mother Lodes arrive on a schedule (every 15 s, sooner with Lucky Lamp and the Big Bonanza)
+      lodeEvery: 15 * val('luck') * (1 - lodeBonus),
+      lodeChance: 1,
       veins: !!ch.c1853,
       dynamite: owns(state, 'tool_dynamite') ? val('dynamite') : 0,
       blast: radius * 1.35,

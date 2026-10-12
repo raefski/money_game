@@ -20,7 +20,7 @@
     quartz: { r: 29, hp: 4, gold: 0.2, weight: 38 },
     nugget: { r: 17, hp: 2, gold: 1.0, weight: 6 },
     vein: { r: 38, hp: 14, gold: 1.6, weight: 5 },   // after the Hydraulic Mining charter
-    lode: { r: 64, hp: 90, gold: 40 },               // the Mother Lode: at most one per shift
+    lode: { r: 48, hp: 8, gold: 4 },                   // the Mother Lode: a boss on a schedule, each one bigger (see LODE_GROWTH)
     // Layers: a shift digs deeper as it runs, and from each depth on every new
     // rock is that layer's ore, one kind at a time. Longer shifts (Lantern Oil)
     // reach the richer, tougher layers.
@@ -37,6 +37,8 @@
   ];
   const DEEP = ['seam', 'pocket', 'bonanza', 'geode', 'heart', 'eldorado'];
   const BLAST_DAMAGE = 0.5;   // dynamite hits for this share of pick damage
+  // Each Mother Lode in a shift is bigger, tougher and richer than the one before.
+  const LODE_GROWTH = { r: 1.3, hp: 2.4, gold: 3.8 };
   const MAX_BLASTS = 300;     // chain reactions stop here, per strike
   const BLAST_REACH = 4;    // a blast reaches this many times the exploding rock's radius
   const TOUCH_LIFT = 88;      // CSS px: default height of the pick above the fingertip on touch
@@ -61,9 +63,9 @@
     const s = {
       stats, w: f.w * z, h: f.h * z, t: 0, over: false, ores: [], nextId: 1, spawnAcc: 0,
       rand: rng(opts.seed || 1), gold: 0, ore: 0, crits: 0, best: 0, lodes: 0, lodeGold: 0, strikes: 0,
-      events: [], lodeAt: null, depth: 0,
+      events: [], lodeAt: null, lodeN: 0, depth: 0,
     };
-    if (s.rand() < stats.lodeChance) s.lodeAt = stats.duration * (0.2 + s.rand() * 0.45);
+    if (stats.lodeEvery > 0) s.lodeAt = stats.lodeEvery;
     for (let i = 0; i < stats.cap; i++) spawn(s);
     s.events.length = 0; // the opening rocks don't need spawn effects
     return s;
@@ -76,20 +78,20 @@
     return type;
   }
 
-  function spawn(s, type) {
+  function spawn(s, type, boss) {
     type = type || pickType(s);
     const base = ORES[type];
-    const r = base.r * (0.9 + s.rand() * 0.2);
+    const r = boss ? boss.r : base.r * (0.9 + s.rand() * 0.2);
     let x = s.w / 2, y = s.h / 2;
     // on a crowded face (zoomed out) placement is just random: checking overlap against every rock costs too much
     const tries = s.ores.length > 150 ? 1 : 16;
     for (let t = 0; t < tries; t++) {
-      x = r + 8 + s.rand() * (s.w - 2 * r - 16);
-      y = r + 8 + s.rand() * (s.h - 2 * r - 16);
+      x = s.w > 2 * r + 16 ? r + 8 + s.rand() * (s.w - 2 * r - 16) : s.w / 2;
+      y = s.h > 2 * r + 16 ? r + 8 + s.rand() * (s.h - 2 * r - 16) : s.h / 2;
       if (tries === 1 || s.ores.every((o) => Math.hypot(o.x - x, o.y - y) > o.r + r + 4)) break;
     }
-    const hp = base.hp * s.stats.hpMult;
-    const o = { id: s.nextId++, type, x, y, r, hp, maxHp: hp, gold: base.gold * s.stats.goldMult, seed: Math.floor(s.rand() * 1e9), born: s.t };
+    const hp = base.hp * s.stats.hpMult * (boss ? boss.hp : 1);
+    const o = { id: s.nextId++, type, x, y, r, hp, maxHp: hp, gold: base.gold * s.stats.goldMult * (boss ? boss.gold : 1), seed: Math.floor(s.rand() * 1e9), born: s.t };
     s.ores.push(o);
     s.events.push({ type: 'spawn', ore: o });
     return o;
@@ -111,9 +113,14 @@
     } else {
       s.spawnAcc = 0;
     }
-    if (s.lodeAt !== null && s.t >= s.lodeAt) {
-      s.lodeAt = null;
-      s.events.push({ type: 'lode', ore: spawn(s, 'lode') });
+    if (s.lodeAt !== null && s.t >= s.lodeAt && s.t < st.duration) {
+      // a boss on a schedule: the nth Mother Lode is bigger, tougher and richer
+      s.lodeN++;
+      s.lodeAt += st.lodeEvery;
+      const k = s.lodeN - 1;
+      const o = spawn(s, 'lode', { r: ORES.lode.r * Math.pow(LODE_GROWTH.r, k), hp: Math.pow(LODE_GROWTH.hp, k), gold: Math.pow(LODE_GROWTH.gold, k) });
+      o.boss = s.lodeN;
+      s.events.push({ type: 'lode', ore: o, n: s.lodeN });
     }
     if (s.t >= st.duration) {
       s.t = st.duration;
@@ -245,6 +252,7 @@
       rock: '#63778b', rockLt: '#8398ac', rockDk: '#435466', quartz: '#e9f1f8', quartzLt: '#ffffff', quartzDk: '#b4c3d1', host: '#36465a', snow: true },
   };
   const GOLD = '#f5c542', GOLD_LT = '#ffe39a', GOLD_DK = '#a8740c';
+  const ROMAN = ['', 'I', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII', 'IX', 'X', 'XI', 'XII'];
   // Flat colors for rock drawn at a few pixels across.
   const FLAT = { rock: '#7d6b57', seam: '#d9d0bf', pocket: '#7a6230', bonanza: '#f0c24a', geode: '#8d5bd6', heart: '#ff8a3a', eldorado: '#fff4cc', lode: GOLD };
   // Pick heads by tier (see Economy.PICK_HEADS): rusty iron → diamond-tipped.
@@ -407,7 +415,7 @@
       if (o.shake > 0) { jx = (Math.random() - 0.5) * 3; jy = (Math.random() - 0.5) * 3; }
       const r = o.r * pop;
       // zoomed far out, rock is only a few pixels across: draw it flat and fast
-      if (r * view.scale < 11) {
+      if (r * view.scale < 11 && o.type !== 'lode') {
         ctx.save();
         ctx.translate(o.x + jx, o.y + jy);
         ctx.fillStyle = o.flash > 0 ? '#ffffff' : FLAT[o.type] || pal.rock;
@@ -579,8 +587,24 @@
         polygon(sh.pts, r);
         ctx.fill();
       }
+      // the boss: a label and a health bar that are always shown
+      if (o.type === 'lode') {
+        const px = 1 / view.scale, bw = Math.max(r * 1.6, 70 * px), bh = 7 * px, by = -r - 16 * px;
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+        ctx.fillRect(-bw / 2 - px, by - px, bw + 2 * px, bh + 2 * px);
+        ctx.fillStyle = '#ff8a1f';
+        ctx.fillRect(-bw / 2, by, bw * Math.max(0, o.hp) / o.maxHp, bh);
+        ctx.font = `700 ${(11 * px).toFixed(2)}px "JetBrains Mono", ui-monospace, monospace`;
+        ctx.textAlign = 'center';
+        ctx.lineWidth = 3 * px;
+        ctx.strokeStyle = 'rgba(0, 0, 0, 0.8)';
+        const label = `MOTHER LODE ${ROMAN[o.boss] || o.boss || ''}`.trim();
+        ctx.strokeText(label, 0, by - 5 * px);
+        ctx.fillStyle = '#ffe39a';
+        ctx.fillText(label, 0, by - 5 * px);
+      }
       // tough rock that has been hit shows how much is left
-      if (tough > 0 && o.hp < o.maxHp && o.hp > 0) {
+      if (o.type !== 'lode' && tough > 0 && o.hp < o.maxHp && o.hp > 0) {
         const bw = r * 1.4, bh = Math.max(3, r * 0.14), by = -r - bh * 2.2;
         ctx.fillStyle = 'rgba(0, 0, 0, 0.65)';
         ctx.fillRect(-bw / 2 - 1, by - 1, bw + 2, bh + 2);
@@ -746,7 +770,7 @@
         // tiny far-away rock is batched: one path per color, filled once
         const batch = {};
         for (const o of s.ores) {
-          if (o.r * view.scale < 11 && !(o.flash > 0) && !(o.shake > 0) && now - o.born > 0.18) {
+          if (o.type !== 'lode' && o.r * view.scale < 11 && !(o.flash > 0) && !(o.shake > 0) && now - o.born > 0.18) {
             const col = FLAT[o.type] || '#7d6b57';
             const path = batch[col] || (batch[col] = new Path2D());
             path.moveTo(o.x + o.r * 0.85, o.y);
