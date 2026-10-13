@@ -449,8 +449,8 @@
     { id: 'luck', cat: 'shift', name: 'Lucky Lamp', icon: 'clover', base: 71000, growth: 2, max: 10, requires: { charter: 'c1873' },
       value: (l) => Math.pow(0.93, l), show: (v) => `Mother Lodes every ${(15 * v).toFixed(1)}s`,
       desc: 'Mother Lodes are bosses: one arrives every 15 seconds of a shift, each bigger, tougher and richer than the last. A brighter lamp brings them sooner, so a shift meets more of them.' },
-    { id: 'dynamite', cat: 'tools', name: 'Dynamite Bundles', icon: 'dynamite', base: 130000, growth: 2.3, max: 20, requires: { item: 'tool_dynamite' },
-      value: (l) => 0.1 + 0.04 * l, show: (v) => `${Math.round(v * 100)}% blast chance, blasts ${(4 + (v - 0.1) * 5).toFixed(1)}× a rock`,
+    { id: 'dynamite', cat: 'tools', name: 'Dynamite Bundles', icon: 'dynamite', base: 13000000, growth: 2.3, max: 20, requires: { item: 'tool_dynamite' },
+      value: (l) => 0.02 + 0.044 * l, show: (v) => `${Math.round(v * 100)}% blast chance, blasts ${(4 + (v - 0.02) * (0.2 / 0.044)).toFixed(1)}× a rock`,
       desc: 'Bigger bundles: a broken rock is more likely to explode, and each blast reaches further, so chains run through the face like a fission reaction.' },
     { id: 'drill', cat: 'tools', name: 'Air Compressor', icon: 'drill', base: 2400000, growth: 2.8, max: 10, requires: { item: 'tool_drill' },
       value: (l) => 0.5 + 0.1 * l, show: (v) => `drill at ${Math.round(v * 100)}% of swing speed`,
@@ -458,10 +458,10 @@
   ].forEach((u) => add(Object.assign({ kind: 'level' }, u)));
 
   [
-    { id: 'tool_foreman', name: 'Shift Foreman', icon: 'whistle', cost: 920, requires: { charter: 'c1850' }, effect: 'Next shift starts by itself',
+    { id: 'tool_foreman', name: 'Shift Foreman', icon: 'whistle', cost: 920, requires: { charter: 'c1859' }, effect: 'Next shift starts by itself',
       desc: 'Starts the next shift on its own a few seconds after the assay report.' },
-    { id: 'tool_dynamite', name: "Nobel's Dynamite", icon: 'dynamite', cost: 78000, requires: { charter: 'c1867' }, effect: 'Broken rock can explode (10%)',
-      desc: 'A broken rock may explode (10% chance), damaging the rock around it. Blasts can chain.' },
+    { id: 'tool_dynamite', name: "Nobel's Dynamite", icon: 'dynamite', cost: 1000000, requires: { charter: 'c1867' }, effect: 'Broken rock can explode (2%)',
+      desc: 'A broken rock may explode (2% chance), damaging the rock around it. Blasts can chain. Dynamite Bundles raise the chance.' },
     { id: 'tool_drill', name: 'Pneumatic Rock Drill', icon: 'drill', cost: 1400000, requires: { charter: 'c1880' }, effect: 'Strikes on its own at 50% of your swing speed',
       desc: 'Strikes by itself wherever your pick rests, at half your swing speed, even when you are not holding down.' },
   ].forEach((u) => add(Object.assign({ kind: 'tool', cat: 'tools' }, u)));

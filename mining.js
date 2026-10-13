@@ -20,7 +20,7 @@
     quartz: { r: 29, hp: 4, gold: 0.2, weight: 38 },
     nugget: { r: 17, hp: 2, gold: 1.0, weight: 6 },
     vein: { r: 38, hp: 14, gold: 1.6, weight: 5 },   // after the Hydraulic Mining charter
-    lode: { r: 48, hp: 8, gold: 4 },                   // the Mother Lode: a boss on a schedule, each one bigger (see LODE_GROWTH)
+    lode: { r: 48, hp: 16, gold: 4 },                  // the Mother Lode: a boss on a schedule, each one bigger (see LODE_GROWTH)
     // Layers: a shift digs deeper as it runs, and from each depth on every new
     // rock is that layer's ore, one kind at a time. Longer shifts (Lantern Oil)
     // reach the richer, tougher layers.
